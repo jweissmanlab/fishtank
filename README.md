@@ -1,17 +1,21 @@
+<img
+  src="https://raw.githubusercontent.com/jweissmanlab/fishtank/main/docs/_static/img/fishtank_logo.png"
+  class="dark-light" align="right" width="300" alt="image"
+/>
+
 # fishtank
+
+
 
 [![Tests][badge-tests]][tests]
 [![Documentation][badge-docs]][documentation]
+
 
 [badge-tests]: https://img.shields.io/github/actions/workflow/status/jweissmanlab/fishtank/test.yaml?branch=main
 [badge-docs]: https://img.shields.io/readthedocs/fishtank
 
 A collection of tools for processing MERFISH data
 
-<img
-  src="https://raw.githubusercontent.com/jweissmanlab/fishtank/main/docs/_static/img/fishtank_logo.png"
-  class="dark-light" align="right" width="350" alt="image"
-/>
 
 ## Getting started
 
