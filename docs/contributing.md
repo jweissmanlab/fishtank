@@ -1,13 +1,6 @@
 # Contributing guide
 
-Scanpy provides extensive [developer documentation][scanpy developer guide], most of which applies to this project, too.
-This document will not reproduce the entire content from there.
-Instead, it aims at summarizing the most important information to get you started on contributing.
-
-We assume that you are already familiar with git and with making pull requests on GitHub.
-If not, please refer to the [scanpy developer guide][].
-
-[scanpy developer guide]: https://scanpy.readthedocs.io/en/latest/dev/index.html
+Fishtank is maintained by Jonathan Weissman's lab at the Whitehead Institute. Contributions are welcome!
 
 ## Installing dev dependencies
 

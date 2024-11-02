@@ -1,0 +1,21 @@
+name: fishtank
+channels:
+  - defaults
+  - conda-forge
+dependencies:
+  - python=3.11
+  - ipykernel
+  - pip
+  - pip:
+      - pre-commit
+      - numpy
+      - matplotlib
+      - seaborn
+      - pandas
+      - ipywidgets
+      - scikit-image
+      - shapely
+      - cellpose
+      - geopandas
+      - h5py
+      - rasterio

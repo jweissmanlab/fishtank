@@ -8,6 +8,11 @@
 
 A collection of tools for processing MERFISH data
 
+<img
+  src="https://raw.githubusercontent.com/jweissmanlab/fishtank/main/docs/_static/img/fishtank_logo.png"
+  class="dark-light" align="right" width="350" alt="image"
+/>
+
 ## Getting started
 
 Please refer to the [documentation][],
@@ -18,17 +23,7 @@ in particular, the [API documentation][].
 You need to have Python 3.10 or newer installed on your system.
 If you don't have Python installed, we recommend installing [Mambaforge][].
 
-There are several alternative options to install fishtank:
-
-<!--
-1) Install the latest release of `fishtank` from [PyPI][]:
-
-```bash
-pip install fishtank
-```
--->
-
-1. Install the latest development version:
+Install the latest version:
 
 ```bash
 pip install git+https://github.com/jweissmanlab/fishtank.git@main
@@ -40,12 +35,8 @@ See the [changelog][].
 
 ## Contact
 
-For questions and help requests, you can reach out in the [scverse discourse][].
 If you found a bug, please use the [issue tracker][].
 
-## Citation
-
-> t.b.a
 
 [mambaforge]: https://github.com/conda-forge/miniforge#mambaforge
 [scverse discourse]: https://discourse.scverse.org/

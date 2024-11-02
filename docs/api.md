@@ -1,38 +1,13 @@
 # API
 
-## Preprocessing
+## I/O
 
 ```{eval-rst}
-.. module:: fishtank.pp
+.. module:: fishtank.io
 .. currentmodule:: fishtank
 
 .. autosummary::
     :toctree: generated
 
-    pp.basic_preproc
-```
-
-## Tools
-
-```{eval-rst}
-.. module:: fishtank.tl
-.. currentmodule:: fishtank
-
-.. autosummary::
-    :toctree: generated
-
-    tl.basic_tool
-```
-
-## Plotting
-
-```{eval-rst}
-.. module:: fishtank.pl
-.. currentmodule:: fishtank
-
-.. autosummary::
-    :toctree: generated
-
-    pl.basic_plot
-    pl.BasicClass
+    io.imread
 ```
