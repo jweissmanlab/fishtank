@@ -12,7 +12,7 @@
 
 
 [badge-tests]: https://img.shields.io/github/actions/workflow/status/jweissmanlab/fishtank/test.yaml?branch=main
-[badge-docs]: https://img.shields.io/readthedocs/fishtank
+[badge-docs]: https://img.shields.io/readthedocs/fishtank-jsw
 
 A collection of tools for processing MERFISH data
 
@@ -46,7 +46,7 @@ If you found a bug, please use the [issue tracker][].
 [scverse discourse]: https://discourse.scverse.org/
 [issue tracker]: https://github.com/jweissmanlab/fishtank/issues
 [tests]: https://github.com/jweissmanlab/fishtank/actions/workflows/test.yml
-[documentation]: https://fishtank.readthedocs.io
-[changelog]: https://fishtank.readthedocs.io/en/latest/changelog.html
-[api documentation]: https://fishtank.readthedocs.io/en/latest/api.html
+[documentation]: https://fishtank-jsw.readthedocs.io
+[changelog]: https://fishtank-jsw.readthedocs.io/en/latest/changelog.html
+[api documentation]: https://fishtank-jsw.readthedocs.io/en/latest/api.html
 [pypi]: https://pypi.org/project/fishtank
