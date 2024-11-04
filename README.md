@@ -1,21 +1,17 @@
+# fishtank
+
 <img
   src="https://raw.githubusercontent.com/jweissmanlab/fishtank/main/docs/_static/img/fishtank_logo.png"
   class="dark-light" align="right" width="300" alt="image"
 />
 
-# fishtank
-
-
-
 [![Tests][badge-tests]][tests]
 [![Documentation][badge-docs]][documentation]
-
 
 [badge-tests]: https://img.shields.io/github/actions/workflow/status/jweissmanlab/fishtank/test.yaml?branch=main
 [badge-docs]: https://img.shields.io/readthedocs/fishtank-jsw
 
 A collection of tools for processing MERFISH data
-
 
 ## Getting started
 
@@ -40,7 +36,6 @@ See the [changelog][].
 ## Contact
 
 If you found a bug, please use the [issue tracker][].
-
 
 [mambaforge]: https://github.com/conda-forge/miniforge#mambaforge
 [scverse discourse]: https://discourse.scverse.org/

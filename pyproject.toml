@@ -24,6 +24,9 @@ classifiers = [
 ]
 dependencies = [
   "numpy",
+  "pandas",
+  "pathlib",
+  "scikit-image",
   # for debug logging (referenced from the issue template)
   "session-info",
 ]

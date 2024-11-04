@@ -1,0 +1,82 @@
+import pytest
+
+import fishtank as ft
+
+
+@pytest.fixture()
+def xml_path(img_path):
+    return img_path / "H0R1" / "Conv_zscan_01.xml"
+
+
+@pytest.fixture()
+def dax_path(img_path):
+    return img_path / "H0R1" / "Conv_zscan_01.dax"
+
+
+@pytest.fixture()
+def color_usage_path(img_path):
+    return img_path / "color_usage.csv"
+
+
+def test_read_xml(xml_path):
+    expected = {
+        "objective": "obj1",
+        "micron_per_pixel": 0.107,
+        "flip_horizontal": False,
+        "flip_vertical": True,
+        "transpose": True,
+        "x_pixels": 288,
+        "y_pixels": 288,
+        "stage_position": [400.1, -2494.35],
+        "number_frames": 25,
+        "z_offsets": [-15.0, -14.4, -13.8, -13.2, -12.6],
+        "colors": [748, 637, 545, 477, 405],
+    }
+    attrs = ft.io.read_xml(xml_path, parse=True)
+    for key in expected:
+        assert attrs[key] == expected[key]
+
+
+def test_read_dax(dax_path):
+    img = ft.io.read_dax(dax_path, shape=(288, 288))
+    assert img.shape == (25, 288, 288)
+    assert img.dtype == "uint16"
+    with pytest.raises(ValueError):
+        ft.io.read_dax(dax_path, shape=(100, 100))
+
+
+def test_read_img(dax_path):
+    img, attrs = ft.io.read_img(dax_path)
+    assert img.shape == (5, 5, 288, 288)
+    assert img.dtype == "uint16"
+
+
+def test_read_color_usage(color_usage_path):
+    channels = ft.io.read_color_usage(color_usage_path)
+    assert channels.shape == (13, 3)
+    assert channels["color"].nunique() == 5
+    assert set(channels.columns) == {"color", "series", "bit"}
+
+
+def test_read_fov(img_path, channels):
+    # single series
+    img, attrs = ft.io.read_fov(img_path, 1, "H0R1", file_pattern="{series}/Conv_zscan_{fov}.dax")
+    assert img.shape == (5, 5, 288, 288)
+    assert img.dtype == "uint16"
+    assert attrs["objective"] == "obj1"
+    # list of series
+    img, attrs = ft.io.read_fov(img_path, 1, ["H0R1", "H1R2"], file_pattern="{series}/Conv_zscan_{fov}.dax")
+    assert img.shape == (9, 5, 288, 288)
+    # channels
+    img, attrs = ft.io.read_fov(
+        img_path,
+        1,
+        channels=channels.query("color == 637"),
+        file_pattern="{series}/Conv_zscan_{fov}.dax",
+        z_project=True,
+    )
+    assert img.shape == (3, 5, 288, 288)
+
+
+if __name__ == "__main__":
+    pytest.main(["-v", __file__])
