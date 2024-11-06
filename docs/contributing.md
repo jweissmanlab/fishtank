@@ -73,7 +73,6 @@ Consider enabling this option for [ruff][ruff-editors] and [prettier][prettier-e
 ## Writing tests
 
 This package uses [pytest][] for automated testing.
-Please write {doc}`scanpy:dev/testing` for every function added to the package.
 
 Most IDEs integrate with pytest and provide a GUI to run tests.
 Just point yours to one of the environments returned by
@@ -153,8 +152,6 @@ This project uses [sphinx][] with the following features:
 -   Jupyter notebooks as tutorials through [myst-nb][] (See [Tutorials with myst-nb](#tutorials-with-myst-nb-and-jupyter-notebooks))
 -   [sphinx-autodoc-typehints][], to automatically reference annotated input and output types
 -   Citations (like {cite:p}`Virshup_2023`) can be included with [sphinxcontrib-bibtex](https://sphinxcontrib-bibtex.readthedocs.io/)
-
-See scanpy’s {doc}`scanpy:dev/documentation` for more information on how to write your own.
 
 [sphinx]: https://www.sphinx-doc.org/en/master/
 [myst]: https://myst-parser.readthedocs.io/en/latest/intro.html

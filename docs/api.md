@@ -9,5 +9,10 @@
 .. autosummary::
     :toctree: generated
 
-    io.imread
+    io.read_img
+    io.read_fov
+    io.read_dax
+    io.read_xml
+    io.read_color_usage
+
 ```

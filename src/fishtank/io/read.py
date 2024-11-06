@@ -1,7 +1,7 @@
 import os
 import pathlib
 import re
-import xml
+from xml.etree import ElementTree as xml
 
 import numpy as np
 import pandas as pd
@@ -28,9 +28,9 @@ def read_xml(path: str | pathlib.Path, parse: bool = True) -> dict:
     Returns
     -------
     attrs
-        Dictionary of image attributes.
+        a dictionary of image attributes.
     """
-    tree = _xml_to_dict(xml.etree.ElementTree.parse(path).getroot())
+    tree = _xml_to_dict(xml.parse(path).getroot())
     if parse is False:
         return tree
     attrs = {}
@@ -52,35 +52,70 @@ def read_xml(path: str | pathlib.Path, parse: bool = True) -> dict:
     return attrs
 
 
-def read_dax(path: str | pathlib.Path, shape=(2304, 2304), dtype="uint16") -> np.ndarray:
+def read_dax(
+    path: str | pathlib.Path, frames: int | list = None, shape: tuple = (2304, 2304), dtype: str = "uint16"
+) -> np.ndarray:
     """Read a MERFISH formatted dax file.
 
     Parameters
     ----------
     path
         Path to dax file.
+    frames
+        Indices of frames to read.
     shape
         Shape of a single frame.
+    dtype
+        Data type of the image.
 
     Returns
     -------
     img
-        Image as numpy array with shape (F, Y, X) where F is the number of frames.
+        a numpy array with shape (F, Y, X) where F is the number of frames.
     """
-    img = np.fromfile(path, dtype=dtype, count=-1)
-    n_frames = len(img) // np.prod(shape)
-    if len(img) % np.prod(shape) != 0:
-        raise ValueError(f"Image size {len(img)} is not divisible by frame size {np.prod(shape)}")
+    if frames is None:
+        img = np.fromfile(path, dtype=dtype, count=-1)
+        n_frames = len(img) // np.prod(shape)
+        if len(img) % np.prod(shape) != 0:
+            raise ValueError(f"Image size {len(img)} is not divisible by frame size {np.prod(shape)}")
+    else:
+        memmap = np.memmap(path, dtype=dtype, mode="r")
+        if isinstance(frames, int):
+            frames = [frames]
+        try:
+            img = np.array([memmap[frame * np.prod(shape) : (frame + 1) * np.prod(shape)] for frame in frames])
+        except ValueError:
+            raise ValueError(f"Frame indices {frames} are out of bounds")  # noqa: B904
+        n_frames = len(frames)
     return img.reshape(n_frames, *shape)
 
 
-def read_img(path: str | pathlib.Path, plugin: str = None, **plugin_args) -> np.ndarray:
-    """Read image file with paired attributes.
+def read_img(
+    path: str | pathlib.Path,
+    colors: int | str | list = None,
+    z_slices: int | list = None,
+    z_project: bool = False,
+    shape: tuple = None,
+    color_order: list = None,
+    plugin: str = None,
+    **plugin_args,
+) -> np.ndarray:
+    """Read image file.
 
     Parameters
     ----------
     path
         Image file path.
+    colors
+        List of color indices to read.
+    z_slices
+        List of z-slice indices to read.
+    z_project
+        If True, z-project the image.
+    shape
+        Shape of a single frame.
+    color_order
+        Order of colors in the image.
     plugin
         Name of skimage plugin used to load image if not dax format.
     plugin_args
@@ -89,30 +124,63 @@ def read_img(path: str | pathlib.Path, plugin: str = None, **plugin_args) -> np.
     Returns
     -------
     img
-        Image as numpy array, such that a gray image is (Y,X), a 3D gray image is (Z,Y,X), and multi-channel image is (C,Z,Y,X).
+        a numpy array, such that a gray image is (Y,X), a 3D gray image is (Z,Y,X), and 3D multi-channel image is (C,Z,Y,X).
     attrs
-        Dictionary of image attributes.
+        a dictionary of image attributes.
     """
+    # Setup
     path = pathlib.Path(path)
     suffix = path.suffix.lower()
+    frames = None
+    z_max = None
+    n_colors = 1
     # Attempt to load attributes
     if os.path.exists(path.with_suffix(".xml")):
         attrs = read_xml(path.with_suffix(".xml"))
-    else:
-        attrs = {}
-    # Load image
-    if suffix == ".dax":
         if "x_pixels" in attrs.keys() and "y_pixels" in attrs.keys():
             shape = (attrs["x_pixels"], attrs["y_pixels"])
-            img = read_dax(path, shape=shape, **plugin_args)
-        else:
-            img = read_dax(path)
+        if "z_offsets" in attrs.keys():
+            z_max = len(attrs["z_offsets"])
+        if "colors" in attrs.keys():
+            color_order = np.array(attrs["colors"])
+            n_colors = len(attrs["colors"])
     else:
-        img = ski.io.imread(path, plugin=plugin, **plugin_args)
+        attrs = {}
+    # Process z-slice selection
+    if z_slices is not None:
+        if z_max is None:
+            raise ValueError("Cannot select z-slices without xml metadata file")
+        if isinstance(z_slices, int):
+            z_slices = [z_slices]
+        z_slices = np.array(z_slices)
+    # Process color selection
+    if colors is not None:
+        if color_order is None:
+            raise ValueError("Cannot select colors without xml file or color_order specified")
+        if isinstance(colors, int) or isinstance(colors, str):
+            colors = [colors]
+        colors = np.array(colors).astype(color_order.dtype)
+        if not np.all(np.isin(colors, color_order)):
+            missing = np.setdiff1d(colors, color_order)
+            raise ValueError(f"Color {missing} not found in image colors {color_order}")
+        color_slices = np.array([np.where(color_order == c)[0][0] for c in colors])
+        n_colors = len(colors)
+    # Get frames
+    if z_slices is not None or colors is not None:
+        frames = np.arange(z_max * len(color_order)).reshape(z_max, len(color_order))
+        if z_slices is not None:
+            frames = np.take(frames, z_slices, axis=0)
+        if colors is not None:
+            frames = np.take(frames, color_slices, axis=1)
+        frames = frames.flatten()
+    # Load image
+    if suffix == ".dax":
+        img = read_dax(path, shape=shape, frames=frames, **plugin_args)
+    else:
+        img = ski.io.imread(path, plugin=plugin, **plugin_args)[frames]
     # Reshape image if necessary
-    if len(attrs["colors"]) > 1:
-        z_slices = img.shape[0] // len(attrs["colors"])
-        img = np.reshape(img, (len(attrs["colors"]), z_slices, *img.shape[1:]))
+    if n_colors > 1:
+        img = np.reshape(img, (n_colors, img.shape[0] // n_colors, *img.shape[1:]))
     # Apply transpose and flip operations
     if attrs["transpose"]:
         img = img.swapaxes(-1, -2)
@@ -120,10 +188,13 @@ def read_img(path: str | pathlib.Path, plugin: str = None, **plugin_args) -> np.
         img = np.flip(img, axis=-1)
     if attrs["flip_vertical"]:
         img = np.flip(img, axis=-2)
-    return img, attrs
+    # Z-project image if necessary
+    if z_project:
+        img = img.max(axis=-3)
+    return img.squeeze(), attrs
 
 
-def read_color_usage(path: str | pathlib.Path) -> dict:
+def read_color_usage(path: str | pathlib.Path) -> pd.DataFrame:
     """Read MERFISH color usage file.
 
     Parameters
@@ -134,7 +205,7 @@ def read_color_usage(path: str | pathlib.Path) -> dict:
     Returns
     -------
     channels
-        DataFrame with columns "series", "color", and "bit" for each channel.
+        a DataFrame with columns "series", "color", and "bit" for each channel.
     """
     color_usage = pd.read_csv(path)
     color_usage = color_usage.rename(columns={color_usage.columns[0]: "series"})
@@ -161,11 +232,11 @@ def read_fov(
     series: int | str | list = None,
     channels: pd.DataFrame = None,
     file_pattern: str = "{series}/Conv_zscan_{fov}.dax",
-    z_project: bool = False,
     z_slices: list = None,
+    z_project: bool = False,
     ref_series: int | str = None,
 ):
-    """Read a single field of view from a MERFISH dataset.
+    """Read FOV from MERFISH experiment.
 
     Parameters
     ----------
@@ -176,20 +247,20 @@ def read_fov(
     series
         Series number.
     channels
-        List of channel colors.
+        DataFrame with "series" and "color" columns specifying the channels to read.
     file_pattern
         Pattern for image files.
+    z_slices
+        List of z-slice indices to read.
     z_project
         If True, z-project the image.
-    z_slices
-        Slice indices to keep.
 
     Returns
     -------
     img
-        Image as numpy array.
+        a numpy array, such that a gray image is (Y,X), a 3D gray image is (Z,Y,X), and 3D multi-channel image is (C,Z,Y,X).
     attrs
-        Dictionary of image attributes.
+        a dictionary of image attributes.
     """
     imgs = []
     attrs = []
@@ -198,18 +269,27 @@ def read_fov(
             series = [series]
         file_pattern = _determine_fov_format(path, fov, series[0], file_pattern)
         for s in series:
-            img, attr = read_img(path / file_pattern.format(series=s, fov=fov))
+            img, attr = read_img(path / file_pattern.format(series=s, fov=fov), z_slices=z_slices, z_project=z_project)
             imgs.append(img)
             attrs.append(attr)
     elif channels is not None:
-        print("channels")
-        print(channels)
         file_pattern = _determine_fov_format(path, fov, channels["series"].values[0], file_pattern)
         for s, s_channels in channels.groupby("series", sort=False):
-            img, attr = read_img(path / file_pattern.format(series=s, fov=fov))
-            imgs.append(img[np.isin(np.array(attr["colors"]), s_channels["color"])])
+            img, attr = read_img(
+                path / file_pattern.format(series=s, fov=fov),
+                colors=s_channels["color"].values,
+                z_slices=z_slices,
+                z_project=z_project,
+            )
+            imgs.append(img)
             attrs.append(attr)
-    imgs = np.concatenate(imgs, axis=0)
+    if len(imgs) > 1:
+        if len(imgs[0].shape) == 2:
+            imgs = np.stack(imgs, axis=0)
+        else:
+            imgs = np.concatenate(imgs, axis=0)
+    else:
+        imgs = imgs[0]
     if ref_series is not None:
         attrs = attrs[np.where(series == ref_series)[0][0]]
     else:

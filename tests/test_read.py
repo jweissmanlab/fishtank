@@ -1,3 +1,4 @@
+import numpy as np
 import pytest
 
 import fishtank as ft
@@ -45,10 +46,31 @@ def test_read_dax(dax_path):
         ft.io.read_dax(dax_path, shape=(100, 100))
 
 
+def test_read_dax_frames(dax_path):
+    img = ft.io.read_dax(dax_path, frames=[0, 5, 10], shape=(288, 288))
+    assert img.shape == (3, 288, 288)
+    img = ft.io.read_dax(dax_path, frames=5, shape=(288, 288))
+    assert img.shape == (1, 288, 288)
+    with pytest.raises(ValueError):
+        img = ft.io.read_dax(dax_path, frames=[1, 100], shape=(288, 288))
+
+
 def test_read_img(dax_path):
     img, attrs = ft.io.read_img(dax_path)
     assert img.shape == (5, 5, 288, 288)
     assert img.dtype == "uint16"
+    img, attrs = ft.io.read_img(dax_path, z_slices=np.array([0, 1, 2]))
+    assert img.shape == (5, 3, 288, 288)
+    img, attrs = ft.io.read_img(dax_path, colors=[637, 545])
+    assert img.shape == (2, 5, 288, 288)
+    img, attrs = ft.io.read_img(dax_path, z_slices=1, colors=[637, 545])
+    assert img.shape == (2, 288, 288)
+    img, attrs = ft.io.read_img(dax_path, z_slices=[0, 1, 2], colors=405, z_project=True)
+    assert img.shape == (288, 288)
+    with pytest.raises(ValueError):
+        img, attrs = ft.io.read_img(dax_path, z_slices=[0, 1, 2], colors="bad")
+    with pytest.raises((ValueError, IndexError)):
+        img, attrs = ft.io.read_img(dax_path, z_slices=100)
 
 
 def test_read_color_usage(color_usage_path):
@@ -75,7 +97,7 @@ def test_read_fov(img_path, channels):
         file_pattern="{series}/Conv_zscan_{fov}.dax",
         z_project=True,
     )
-    assert img.shape == (3, 5, 288, 288)
+    assert img.shape == (3, 288, 288)
 
 
 if __name__ == "__main__":
