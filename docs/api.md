@@ -16,3 +16,30 @@
     io.read_color_usage
 
 ```
+
+## Correction
+
+```{eval-rst}
+.. module:: fishtank.correct
+.. currentmodule:: fishtank
+
+.. autosummary::
+    :toctree: generated
+
+    correct.illumination
+
+```
+
+## Segmentation
+
+```{eval-rst}
+.. module:: fishtank.seg
+.. currentmodule:: fishtank
+
+.. autosummary::
+    :toctree: generated
+
+    seg.masks_to_polygons
+    seg.polygons_to_masks
+
+```

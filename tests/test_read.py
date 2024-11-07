@@ -93,7 +93,7 @@ def test_read_fov(img_path, channels):
     img, attrs = ft.io.read_fov(
         img_path,
         1,
-        channels=channels.query("color == 637"),
+        channels=channels.query("color == 748"),
         file_pattern="{series}/Conv_zscan_{fov}.dax",
         z_project=True,
     )

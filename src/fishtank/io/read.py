@@ -16,7 +16,7 @@ def _xml_to_dict(element):
 
 
 def read_xml(path: str | pathlib.Path, parse: bool = True) -> dict:
-    """Read and parse MERFISH formatted xml file.
+    """Read MERFISH formatted xml file.
 
     Parameters
     ----------
