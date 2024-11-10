@@ -31,7 +31,7 @@ pip install git+https://github.com/jweissmanlab/fishtank.git@main
 
 ## Configuration
 
-To use fast `fishtank.filter.deconwolf` install [deconwolf](https://github.com/elgw/deconwolf). Then set the `dw_path` and `dw_psf_path` attributes in the `.config.ini` file.
+To use `fishtank.filters.deconwolf` install [deconwolf](https://github.com/elgw/deconwolf) then set the `dw_path` and `dw_psf_path` attributes in the `.config.ini` file.
 
 ## Release notes
 

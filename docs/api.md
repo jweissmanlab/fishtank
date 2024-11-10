@@ -30,6 +30,19 @@
 
 ```
 
+## Filters
+
+```{eval-rst}
+.. module:: fishtank.filters
+.. currentmodule:: fishtank
+
+.. autosummary::
+    :toctree: generated
+
+    filters.deconwolf
+
+```
+
 ## Segmentation
 
 ```{eval-rst}
