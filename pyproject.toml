@@ -29,6 +29,7 @@ dependencies = [
   "pathlib",
   "rasterio",
   "scikit-image",
+  "scikit-learn",
   # for debug logging (referenced from the issue template)
   "session-info",
 ]

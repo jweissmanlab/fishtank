@@ -1,4 +1,5 @@
 import numpy as np
+import pytest
 
 import fishtank as ft
 
@@ -28,3 +29,7 @@ def test_masks_to_polygons_2d(polygons, masks):
     intersection = polygons.query("z == 5").union_all().intersection(new_polygons.union_all())
     assert intersection.area / new_polygons.union_all().area > 0.99
     assert set(np.unique(masks[5])) - {0} == set(new_polygons["cell"].unique())
+
+
+if __name__ == "__main__":
+    pytest.main(["-v", __file__])

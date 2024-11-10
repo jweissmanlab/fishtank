@@ -8,6 +8,27 @@ import pytest
 import fishtank as ft
 
 
+def pytest_addoption(parser):
+    parser.addoption(
+        "--runslow",
+        action="store_true",
+        default=False,
+        help="run slow tests",
+    )
+
+
+def pytest_configure(config):
+    config.addinivalue_line("markers", "slow: mark test as slow to run")
+
+
+def pytest_collection_modifyitems(config, items):
+    run_slow = config.getoption("--runslow")
+    skip_slow = pytest.mark.skip(reason="need --runslow option to run")
+    for item in items:
+        if "slow" in item.keywords and not run_slow:
+            item.add_marker(skip_slow)
+
+
 @pytest.fixture(scope="session")
 def img_path() -> Path:
     yield Path("tests/data/merfish")
@@ -26,6 +47,11 @@ def img_attrs(img_path, channels) -> np.ndarray:
 @pytest.fixture(scope="session")
 def img(img_attrs) -> np.array:
     yield img_attrs[0]
+
+
+@pytest.fixture(scope="session")
+def dapi_img(img) -> np.array:
+    yield img[2]
 
 
 @pytest.fixture(scope="session")

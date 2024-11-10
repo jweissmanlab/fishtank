@@ -18,4 +18,5 @@ dependencies:
       - cellpose
       - geopandas
       - h5py
+      - scikit-learn
       - rasterio

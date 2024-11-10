@@ -159,6 +159,7 @@ def read_img(
             raise ValueError("Cannot select colors without xml file or color_order specified")
         if isinstance(colors, int) or isinstance(colors, str):
             colors = [colors]
+        attrs["colors"] = colors
         colors = np.array(colors).astype(color_order.dtype)
         if not np.all(np.isin(colors, color_order)):
             missing = np.setdiff1d(colors, color_order)
@@ -180,7 +181,7 @@ def read_img(
         img = ski.io.imread(path, plugin=plugin, **plugin_args)[frames]
     # Reshape image if necessary
     if n_colors > 1:
-        img = np.reshape(img, (n_colors, img.shape[0] // n_colors, *img.shape[1:]))
+        img = np.reshape(img, (n_colors, img.shape[0] // n_colors, *img.shape[1:]), order="F")
     # Apply transpose and flip operations
     if attrs["transpose"]:
         img = img.swapaxes(-1, -2)
@@ -264,6 +265,7 @@ def read_fov(
     """
     imgs = []
     attrs = []
+    # Load images given list of series
     if series is not None:
         if isinstance(series, int) or isinstance(series, str):
             series = [series]
@@ -272,6 +274,7 @@ def read_fov(
             img, attr = read_img(path / file_pattern.format(series=s, fov=fov), z_slices=z_slices, z_project=z_project)
             imgs.append(img)
             attrs.append(attr)
+    # Load images given channels df
     elif channels is not None:
         file_pattern = _determine_fov_format(path, fov, channels["series"].values[0], file_pattern)
         for s, s_channels in channels.groupby("series", sort=False):
@@ -283,6 +286,7 @@ def read_fov(
             )
             imgs.append(img)
             attrs.append(attr)
+    # Reshape images
     if len(imgs) > 1:
         if len(imgs[0].shape) == 2:
             imgs = np.stack(imgs, axis=0)
@@ -290,8 +294,14 @@ def read_fov(
             imgs = np.concatenate(imgs, axis=0)
     else:
         imgs = imgs[0]
+    # Update attributes
+    if "colors" in attrs[0].keys():
+        colors = [color for attr in attrs for color in attr["colors"]]
+    else:
+        colors = []
     if ref_series is not None:
         attrs = attrs[np.where(series == ref_series)[0][0]]
     else:
         attrs = attrs[0]
+    attrs["colors"] = colors
     return imgs, attrs

@@ -86,9 +86,11 @@ def test_read_fov(img_path, channels):
     assert img.shape == (5, 5, 288, 288)
     assert img.dtype == "uint16"
     assert attrs["objective"] == "obj1"
+    assert attrs["colors"] == [748, 637, 545, 477, 405]
     # list of series
     img, attrs = ft.io.read_fov(img_path, 1, ["H0R1", "H1R2"], file_pattern="{series}/Conv_zscan_{fov}.dax")
     assert img.shape == (9, 5, 288, 288)
+    assert attrs["colors"] == [748, 637, 545, 477, 405, 748, 637, 545, 477]
     # channels
     img, attrs = ft.io.read_fov(
         img_path,
@@ -98,6 +100,7 @@ def test_read_fov(img_path, channels):
         z_project=True,
     )
     assert img.shape == (3, 288, 288)
+    assert attrs["colors"] == [748, 748, 748]
 
 
 if __name__ == "__main__":
