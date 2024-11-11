@@ -11,6 +11,7 @@
 
     io.read_img
     io.read_fov
+    io.list_fovs
     io.read_dax
     io.read_xml
     io.read_color_usage

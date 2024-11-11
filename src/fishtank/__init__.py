@@ -1,7 +1,7 @@
 from importlib.metadata import version
 
-from . import correct, filters, io, seg
+from . import cli, correct, filters, io, seg
 
-__all__ = ["io", "correct", "seg", "filters"]
+__all__ = ["io", "correct", "seg", "filters", "cli"]
 
 __version__ = version("fishtank")

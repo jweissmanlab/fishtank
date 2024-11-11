@@ -52,6 +52,36 @@ def read_xml(path: str | pathlib.Path, parse: bool = True) -> dict:
     return attrs
 
 
+def list_fovs(path: str | pathlib.Path, file_pattern: str = "{series}/Conv_zscan_{fov}.dax") -> list:
+    """List FOVs in a MERFISH experiment.
+
+    Parameters
+    ----------
+    path
+        Path to image files.
+    file_pattern
+        Pattern for image files.
+
+    Returns
+    -------
+    fovs
+        a list of field of view numbers.
+    """
+    path = pathlib.Path(path)
+    series = [d.name for d in path.iterdir() if d.is_dir()]
+    fovs = []
+    for s in series:
+        try:
+            file_pattern = _determine_fov_format(path, 1, s, file_pattern)
+            for f in range(1000):
+                if (path / file_pattern.format(series=s, fov=f)).exists():
+                    fovs.append(f)
+            break
+        except ValueError:
+            continue
+    return fovs
+
+
 def read_dax(
     path: str | pathlib.Path, frames: int | list = None, shape: tuple = (2304, 2304), dtype: str = "uint16"
 ) -> np.ndarray:
@@ -265,6 +295,7 @@ def read_fov(
     """
     imgs = []
     attrs = []
+    path = pathlib.Path(path)
     # Load images given list of series
     if series is not None:
         if isinstance(series, int) or isinstance(series, str):

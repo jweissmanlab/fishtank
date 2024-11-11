@@ -23,6 +23,7 @@ classifiers = [
   "Programming Language :: Python :: 3.13",
 ]
 dependencies = [
+  "cellpose",
   "geopandas",
   "numpy",
   "pandas",
@@ -61,6 +62,8 @@ optional-dependencies.test = [
 urls.Documentation = "https://fishtank.readthedocs.io/"
 urls.Homepage = "https://github.com/jweissmanlab/fishtank"
 urls.Source = "https://github.com/jweissmanlab/fishtank"
+
+scripts.fishtank = "fishtank.cli:main"
 
 [tool.hatch.envs.default]
 installer = "uv"

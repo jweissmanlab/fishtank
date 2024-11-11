@@ -38,6 +38,11 @@ def test_read_xml(xml_path):
         assert attrs[key] == expected[key]
 
 
+def test_list_fovs(img_path):
+    fovs = ft.io.list_fovs(img_path)
+    assert fovs == [0, 1]
+
+
 def test_read_dax(dax_path):
     img = ft.io.read_dax(dax_path, shape=(288, 288))
     assert img.shape == (25, 288, 288)

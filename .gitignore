@@ -25,3 +25,9 @@ __pycache__/
 
 # notebooks
 /dev/
+
+# log files
+/tests/output/
+
+# configuration
+.config.ini

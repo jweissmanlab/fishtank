@@ -74,7 +74,7 @@ def deconwolf(
             if not color_psf.exists():
                 raise FileNotFoundError(f"PSF for color {color} and z_step {z_step} not found at {color_psf}.")
             ski.io.imsave(f"{tmp_dir}/img.tiff", img[i])
-            command = f"{dw_path} --out {tmp_dir}/decon.tiff --iter {iter} {tile} {gpu} {tmp_dir}/img.tiff {color_psf}"
+            command = f"{dw_path} --out {tmp_dir}/decon.tiff --iter {iter} {tile} {gpu} {tmp_dir}/img.tiff {color_psf} --verbose 0"
             subprocess.run(command, check=True, shell=True)
             filtered[i] = ski.io.imread(f"{tmp_dir}/decon.tiff")
     if not has_channels:

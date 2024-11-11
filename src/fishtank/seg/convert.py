@@ -45,7 +45,7 @@ def masks_to_polygons(masks: np.ndarray, tolerance: float = 0.5, id: str = "cell
                 polygons.append(shp.geometry.Polygon(contours[0]).simplify(tolerance=tolerance, preserve_topology=True))
                 cells.append(i)
                 layers.append(l)
-    polygons = gpd.GeoDataFrame({id: cells, "geometry": polygons})
+    polygons = gpd.GeoDataFrame({id: cells, "geometry": polygons}, crs=None)
     if has_layers:
         polygons[z] = layers
     return polygons
