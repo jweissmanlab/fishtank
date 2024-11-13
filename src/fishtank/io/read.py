@@ -267,6 +267,7 @@ def read_fov(
     path: str | pathlib.Path,
     fov: int | str,
     series: int | str | list = None,
+    colors: int | str | list = None,
     channels: pd.DataFrame = None,
     file_pattern: str = "{series}/Conv_zscan_{fov}.dax",
     z_slices: list = None,
@@ -282,7 +283,9 @@ def read_fov(
     fov
         Field of view number.
     series
-        Series number.
+        List of series names to read.
+    colors
+        List of color indices to read.
     channels
         DataFrame with "series" and "color" columns specifying the channels to read.
     file_pattern
@@ -308,11 +311,15 @@ def read_fov(
             series = [series]
         file_pattern = _determine_fov_format(path, fov, series[0], file_pattern)
         for s in series:
-            img, attr = read_img(path / file_pattern.format(series=s, fov=fov), z_slices=z_slices, z_project=z_project)
+            img, attr = read_img(
+                path / file_pattern.format(series=s, fov=fov), z_slices=z_slices, z_project=z_project, colors=colors
+            )
             imgs.append(img)
             attrs.append(attr)
     # Load images given channels df
     elif channels is not None:
+        if colors is not None:
+            channels = channels.query("color in @colors")
         file_pattern = _determine_fov_format(path, fov, channels["series"].values[0], file_pattern)
         for s, s_channels in channels.groupby("series", sort=False):
             img, attr = read_img(
