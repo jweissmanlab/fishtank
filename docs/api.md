@@ -55,5 +55,6 @@
 
     seg.masks_to_polygons
     seg.polygons_to_masks
+    seg.fix_overlaps
 
 ```

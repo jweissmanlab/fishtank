@@ -4,14 +4,13 @@ import warnings
 
 import numpy as np
 import skimage as ski
-from cellpose import models
 
 import fishtank as ft
 from fishtank.utils import parse_dict, parse_index, parse_list, parse_path
 
 
-class FOVLoggerAdapter(logging.LoggerAdapter):
-    def process(self, msg, kwargs):
+class FOVLoggerAdapter(logging.LoggerAdapter):  # noqa: D101
+    def process(self, msg, kwargs):  # noqa: D102
         fov_number = self.extra.get("fov", "Unknown FOV")
         return f"[FOV {fov_number}] {msg}", kwargs
 
@@ -60,6 +59,9 @@ def get_parser():
 
 def main(args):
     """Segment cells using Cellpose"""
+    # Import Cellpose
+    from cellpose import models
+
     # Setup logger
     logger = logging.getLogger("cellpose")
     logger = FOVLoggerAdapter(logger, {"fov": args.fov})

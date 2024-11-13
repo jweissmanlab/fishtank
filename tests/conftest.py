@@ -66,7 +66,15 @@ def corr_path() -> Path:
 
 @pytest.fixture(scope="session")
 def polygons() -> gpd.GeoDataFrame:
-    yield gpd.read_file("tests/data/polygons/polygons_0.geojson")
+    yield gpd.read_file("tests/data/polygons/polygons_0.json")
+
+
+@pytest.fixture(scope="session")
+def overlapping_polygons() -> gpd.GeoDataFrame:
+    polygons_0 = gpd.read_file("tests/data/polygons/polygons_0.json")
+    polygons_1 = gpd.read_file("tests/data/polygons/polygons_1.json")
+    polygons_1.geometry = polygons_1.geometry.translate(xoff=200)
+    yield gpd.GeoDataFrame(pd.concat([polygons_0, polygons_1]))
 
 
 @pytest.fixture(scope="session")

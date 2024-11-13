@@ -1,10 +1,21 @@
 {
     "type": "FeatureCollection",
     "name": "polygons_1",
+    "crs": {
+        "type": "name",
+        "properties": { "name": "urn:ogc:def:crs:OGC:1.3:CRS84" }
+    },
     "features": [
         {
             "type": "Feature",
-            "properties": { "cell": 176, "z": 0 },
+            "properties": {
+                "cell": 1176,
+                "z": 0,
+                "fov": 1,
+                "global_z": -15.0,
+                "x_offset": 200,
+                "y_offset": 0
+            },
             "geometry": {
                 "type": "Polygon",
                 "coordinates": [
@@ -27,7 +38,14 @@
         },
         {
             "type": "Feature",
-            "properties": { "cell": 176, "z": 1 },
+            "properties": {
+                "cell": 1176,
+                "z": 1,
+                "fov": 1,
+                "global_z": -14.4,
+                "x_offset": 200,
+                "y_offset": 0
+            },
             "geometry": {
                 "type": "Polygon",
                 "coordinates": [
@@ -44,7 +62,14 @@
         },
         {
             "type": "Feature",
-            "properties": { "cell": 176, "z": 2 },
+            "properties": {
+                "cell": 1176,
+                "z": 2,
+                "fov": 1,
+                "global_z": -13.8,
+                "x_offset": 200,
+                "y_offset": 0
+            },
             "geometry": {
                 "type": "Polygon",
                 "coordinates": [
@@ -63,7 +88,14 @@
         },
         {
             "type": "Feature",
-            "properties": { "cell": 176, "z": 3 },
+            "properties": {
+                "cell": 1176,
+                "z": 3,
+                "fov": 1,
+                "global_z": -13.2,
+                "x_offset": 200,
+                "y_offset": 0
+            },
             "geometry": {
                 "type": "Polygon",
                 "coordinates": [
@@ -83,7 +115,14 @@
         },
         {
             "type": "Feature",
-            "properties": { "cell": 176, "z": 4 },
+            "properties": {
+                "cell": 1176,
+                "z": 4,
+                "fov": 1,
+                "global_z": -12.6,
+                "x_offset": 200,
+                "y_offset": 0
+            },
             "geometry": {
                 "type": "Polygon",
                 "coordinates": [
@@ -104,7 +143,14 @@
         },
         {
             "type": "Feature",
-            "properties": { "cell": 176, "z": 5 },
+            "properties": {
+                "cell": 1176,
+                "z": 5,
+                "fov": 1,
+                "global_z": -12.0,
+                "x_offset": 200,
+                "y_offset": 0
+            },
             "geometry": {
                 "type": "Polygon",
                 "coordinates": [
@@ -120,7 +166,14 @@
         },
         {
             "type": "Feature",
-            "properties": { "cell": 179, "z": 0 },
+            "properties": {
+                "cell": 1179,
+                "z": 0,
+                "fov": 1,
+                "global_z": -15.0,
+                "x_offset": 200,
+                "y_offset": 0
+            },
             "geometry": {
                 "type": "Polygon",
                 "coordinates": [
@@ -156,7 +209,14 @@
         },
         {
             "type": "Feature",
-            "properties": { "cell": 179, "z": 1 },
+            "properties": {
+                "cell": 1179,
+                "z": 1,
+                "fov": 1,
+                "global_z": -14.4,
+                "x_offset": 200,
+                "y_offset": 0
+            },
             "geometry": {
                 "type": "Polygon",
                 "coordinates": [
@@ -206,7 +266,14 @@
         },
         {
             "type": "Feature",
-            "properties": { "cell": 179, "z": 2 },
+            "properties": {
+                "cell": 1179,
+                "z": 2,
+                "fov": 1,
+                "global_z": -13.8,
+                "x_offset": 200,
+                "y_offset": 0
+            },
             "geometry": {
                 "type": "Polygon",
                 "coordinates": [
@@ -239,7 +306,14 @@
         },
         {
             "type": "Feature",
-            "properties": { "cell": 179, "z": 3 },
+            "properties": {
+                "cell": 1179,
+                "z": 3,
+                "fov": 1,
+                "global_z": -13.2,
+                "x_offset": 200,
+                "y_offset": 0
+            },
             "geometry": {
                 "type": "Polygon",
                 "coordinates": [
@@ -277,7 +351,14 @@
         },
         {
             "type": "Feature",
-            "properties": { "cell": 179, "z": 4 },
+            "properties": {
+                "cell": 1179,
+                "z": 4,
+                "fov": 1,
+                "global_z": -12.6,
+                "x_offset": 200,
+                "y_offset": 0
+            },
             "geometry": {
                 "type": "Polygon",
                 "coordinates": [
@@ -323,7 +404,14 @@
         },
         {
             "type": "Feature",
-            "properties": { "cell": 179, "z": 5 },
+            "properties": {
+                "cell": 1179,
+                "z": 5,
+                "fov": 1,
+                "global_z": -12.0,
+                "x_offset": 200,
+                "y_offset": 0
+            },
             "geometry": {
                 "type": "Polygon",
                 "coordinates": [
@@ -370,7 +458,14 @@
         },
         {
             "type": "Feature",
-            "properties": { "cell": 179, "z": 6 },
+            "properties": {
+                "cell": 1179,
+                "z": 6,
+                "fov": 1,
+                "global_z": -11.4,
+                "x_offset": 200,
+                "y_offset": 0
+            },
             "geometry": {
                 "type": "Polygon",
                 "coordinates": [
@@ -420,7 +515,14 @@
         },
         {
             "type": "Feature",
-            "properties": { "cell": 179, "z": 7 },
+            "properties": {
+                "cell": 1179,
+                "z": 7,
+                "fov": 1,
+                "global_z": -10.8,
+                "x_offset": 200,
+                "y_offset": 0
+            },
             "geometry": {
                 "type": "Polygon",
                 "coordinates": [
@@ -466,7 +568,14 @@
         },
         {
             "type": "Feature",
-            "properties": { "cell": 179, "z": 8 },
+            "properties": {
+                "cell": 1179,
+                "z": 8,
+                "fov": 1,
+                "global_z": -10.2,
+                "x_offset": 200,
+                "y_offset": 0
+            },
             "geometry": {
                 "type": "Polygon",
                 "coordinates": [
@@ -516,7 +625,14 @@
         },
         {
             "type": "Feature",
-            "properties": { "cell": 179, "z": 9 },
+            "properties": {
+                "cell": 1179,
+                "z": 9,
+                "fov": 1,
+                "global_z": -9.6,
+                "x_offset": 200,
+                "y_offset": 0
+            },
             "geometry": {
                 "type": "Polygon",
                 "coordinates": [
@@ -556,7 +672,14 @@
         },
         {
             "type": "Feature",
-            "properties": { "cell": 191, "z": 0 },
+            "properties": {
+                "cell": 1191,
+                "z": 0,
+                "fov": 1,
+                "global_z": -15.0,
+                "x_offset": 200,
+                "y_offset": 0
+            },
             "geometry": {
                 "type": "Polygon",
                 "coordinates": [
@@ -583,7 +706,14 @@
         },
         {
             "type": "Feature",
-            "properties": { "cell": 191, "z": 1 },
+            "properties": {
+                "cell": 1191,
+                "z": 1,
+                "fov": 1,
+                "global_z": -14.4,
+                "x_offset": 200,
+                "y_offset": 0
+            },
             "geometry": {
                 "type": "Polygon",
                 "coordinates": [
@@ -611,7 +741,14 @@
         },
         {
             "type": "Feature",
-            "properties": { "cell": 191, "z": 2 },
+            "properties": {
+                "cell": 1191,
+                "z": 2,
+                "fov": 1,
+                "global_z": -13.8,
+                "x_offset": 200,
+                "y_offset": 0
+            },
             "geometry": {
                 "type": "Polygon",
                 "coordinates": [
@@ -632,7 +769,14 @@
         },
         {
             "type": "Feature",
-            "properties": { "cell": 191, "z": 3 },
+            "properties": {
+                "cell": 1191,
+                "z": 3,
+                "fov": 1,
+                "global_z": -13.2,
+                "x_offset": 200,
+                "y_offset": 0
+            },
             "geometry": {
                 "type": "Polygon",
                 "coordinates": [
@@ -664,7 +808,14 @@
         },
         {
             "type": "Feature",
-            "properties": { "cell": 191, "z": 4 },
+            "properties": {
+                "cell": 1191,
+                "z": 4,
+                "fov": 1,
+                "global_z": -12.6,
+                "x_offset": 200,
+                "y_offset": 0
+            },
             "geometry": {
                 "type": "Polygon",
                 "coordinates": [
@@ -690,7 +841,14 @@
         },
         {
             "type": "Feature",
-            "properties": { "cell": 191, "z": 5 },
+            "properties": {
+                "cell": 1191,
+                "z": 5,
+                "fov": 1,
+                "global_z": -12.0,
+                "x_offset": 200,
+                "y_offset": 0
+            },
             "geometry": {
                 "type": "Polygon",
                 "coordinates": [
@@ -718,7 +876,14 @@
         },
         {
             "type": "Feature",
-            "properties": { "cell": 191, "z": 6 },
+            "properties": {
+                "cell": 1191,
+                "z": 6,
+                "fov": 1,
+                "global_z": -11.4,
+                "x_offset": 200,
+                "y_offset": 0
+            },
             "geometry": {
                 "type": "Polygon",
                 "coordinates": [
@@ -742,7 +907,14 @@
         },
         {
             "type": "Feature",
-            "properties": { "cell": 191, "z": 7 },
+            "properties": {
+                "cell": 1191,
+                "z": 7,
+                "fov": 1,
+                "global_z": -10.8,
+                "x_offset": 200,
+                "y_offset": 0
+            },
             "geometry": {
                 "type": "Polygon",
                 "coordinates": [
@@ -760,7 +932,14 @@
         },
         {
             "type": "Feature",
-            "properties": { "cell": 191, "z": 8 },
+            "properties": {
+                "cell": 1191,
+                "z": 8,
+                "fov": 1,
+                "global_z": -10.2,
+                "x_offset": 200,
+                "y_offset": 0
+            },
             "geometry": {
                 "type": "Polygon",
                 "coordinates": [
@@ -777,7 +956,14 @@
         },
         {
             "type": "Feature",
-            "properties": { "cell": 200, "z": 0 },
+            "properties": {
+                "cell": 1200,
+                "z": 0,
+                "fov": 1,
+                "global_z": -15.0,
+                "x_offset": 200,
+                "y_offset": 0
+            },
             "geometry": {
                 "type": "Polygon",
                 "coordinates": [
@@ -814,7 +1000,14 @@
         },
         {
             "type": "Feature",
-            "properties": { "cell": 200, "z": 1 },
+            "properties": {
+                "cell": 1200,
+                "z": 1,
+                "fov": 1,
+                "global_z": -14.4,
+                "x_offset": 200,
+                "y_offset": 0
+            },
             "geometry": {
                 "type": "Polygon",
                 "coordinates": [
@@ -858,7 +1051,14 @@
         },
         {
             "type": "Feature",
-            "properties": { "cell": 200, "z": 2 },
+            "properties": {
+                "cell": 1200,
+                "z": 2,
+                "fov": 1,
+                "global_z": -13.8,
+                "x_offset": 200,
+                "y_offset": 0
+            },
             "geometry": {
                 "type": "Polygon",
                 "coordinates": [
@@ -902,7 +1102,14 @@
         },
         {
             "type": "Feature",
-            "properties": { "cell": 200, "z": 3 },
+            "properties": {
+                "cell": 1200,
+                "z": 3,
+                "fov": 1,
+                "global_z": -13.2,
+                "x_offset": 200,
+                "y_offset": 0
+            },
             "geometry": {
                 "type": "Polygon",
                 "coordinates": [
@@ -963,7 +1170,14 @@
         },
         {
             "type": "Feature",
-            "properties": { "cell": 200, "z": 4 },
+            "properties": {
+                "cell": 1200,
+                "z": 4,
+                "fov": 1,
+                "global_z": -12.6,
+                "x_offset": 200,
+                "y_offset": 0
+            },
             "geometry": {
                 "type": "Polygon",
                 "coordinates": [
@@ -1006,7 +1220,14 @@
         },
         {
             "type": "Feature",
-            "properties": { "cell": 200, "z": 5 },
+            "properties": {
+                "cell": 1200,
+                "z": 5,
+                "fov": 1,
+                "global_z": -12.0,
+                "x_offset": 200,
+                "y_offset": 0
+            },
             "geometry": {
                 "type": "Polygon",
                 "coordinates": [
@@ -1049,7 +1270,14 @@
         },
         {
             "type": "Feature",
-            "properties": { "cell": 200, "z": 6 },
+            "properties": {
+                "cell": 1200,
+                "z": 6,
+                "fov": 1,
+                "global_z": -11.4,
+                "x_offset": 200,
+                "y_offset": 0
+            },
             "geometry": {
                 "type": "Polygon",
                 "coordinates": [
@@ -1087,7 +1315,14 @@
         },
         {
             "type": "Feature",
-            "properties": { "cell": 200, "z": 7 },
+            "properties": {
+                "cell": 1200,
+                "z": 7,
+                "fov": 1,
+                "global_z": -10.8,
+                "x_offset": 200,
+                "y_offset": 0
+            },
             "geometry": {
                 "type": "Polygon",
                 "coordinates": [
@@ -1137,7 +1372,14 @@
         },
         {
             "type": "Feature",
-            "properties": { "cell": 200, "z": 8 },
+            "properties": {
+                "cell": 1200,
+                "z": 8,
+                "fov": 1,
+                "global_z": -10.2,
+                "x_offset": 200,
+                "y_offset": 0
+            },
             "geometry": {
                 "type": "Polygon",
                 "coordinates": [
@@ -1178,7 +1420,14 @@
         },
         {
             "type": "Feature",
-            "properties": { "cell": 200, "z": 9 },
+            "properties": {
+                "cell": 1200,
+                "z": 9,
+                "fov": 1,
+                "global_z": -9.6,
+                "x_offset": 200,
+                "y_offset": 0
+            },
             "geometry": {
                 "type": "Polygon",
                 "coordinates": [
@@ -1237,7 +1486,14 @@
         },
         {
             "type": "Feature",
-            "properties": { "cell": 224, "z": 3 },
+            "properties": {
+                "cell": 1224,
+                "z": 3,
+                "fov": 1,
+                "global_z": -13.2,
+                "x_offset": 200,
+                "y_offset": 0
+            },
             "geometry": {
                 "type": "Polygon",
                 "coordinates": [
@@ -1256,7 +1512,14 @@
         },
         {
             "type": "Feature",
-            "properties": { "cell": 224, "z": 4 },
+            "properties": {
+                "cell": 1224,
+                "z": 4,
+                "fov": 1,
+                "global_z": -12.6,
+                "x_offset": 200,
+                "y_offset": 0
+            },
             "geometry": {
                 "type": "Polygon",
                 "coordinates": [
@@ -1291,7 +1554,14 @@
         },
         {
             "type": "Feature",
-            "properties": { "cell": 224, "z": 5 },
+            "properties": {
+                "cell": 1224,
+                "z": 5,
+                "fov": 1,
+                "global_z": -12.0,
+                "x_offset": 200,
+                "y_offset": 0
+            },
             "geometry": {
                 "type": "Polygon",
                 "coordinates": [
@@ -1318,7 +1588,14 @@
         },
         {
             "type": "Feature",
-            "properties": { "cell": 224, "z": 6 },
+            "properties": {
+                "cell": 1224,
+                "z": 6,
+                "fov": 1,
+                "global_z": -11.4,
+                "x_offset": 200,
+                "y_offset": 0
+            },
             "geometry": {
                 "type": "Polygon",
                 "coordinates": [
@@ -1337,7 +1614,14 @@
         },
         {
             "type": "Feature",
-            "properties": { "cell": 224, "z": 7 },
+            "properties": {
+                "cell": 1224,
+                "z": 7,
+                "fov": 1,
+                "global_z": -10.8,
+                "x_offset": 200,
+                "y_offset": 0
+            },
             "geometry": {
                 "type": "Polygon",
                 "coordinates": [
@@ -1362,7 +1646,14 @@
         },
         {
             "type": "Feature",
-            "properties": { "cell": 224, "z": 8 },
+            "properties": {
+                "cell": 1224,
+                "z": 8,
+                "fov": 1,
+                "global_z": -10.2,
+                "x_offset": 200,
+                "y_offset": 0
+            },
             "geometry": {
                 "type": "Polygon",
                 "coordinates": [
@@ -1396,7 +1687,14 @@
         },
         {
             "type": "Feature",
-            "properties": { "cell": 224, "z": 9 },
+            "properties": {
+                "cell": 1224,
+                "z": 9,
+                "fov": 1,
+                "global_z": -9.6,
+                "x_offset": 200,
+                "y_offset": 0
+            },
             "geometry": {
                 "type": "Polygon",
                 "coordinates": [
@@ -1429,7 +1727,14 @@
         },
         {
             "type": "Feature",
-            "properties": { "cell": 229, "z": 2 },
+            "properties": {
+                "cell": 1229,
+                "z": 2,
+                "fov": 1,
+                "global_z": -13.8,
+                "x_offset": 200,
+                "y_offset": 0
+            },
             "geometry": {
                 "type": "Polygon",
                 "coordinates": [
@@ -1445,7 +1750,14 @@
         },
         {
             "type": "Feature",
-            "properties": { "cell": 229, "z": 3 },
+            "properties": {
+                "cell": 1229,
+                "z": 3,
+                "fov": 1,
+                "global_z": -13.2,
+                "x_offset": 200,
+                "y_offset": 0
+            },
             "geometry": {
                 "type": "Polygon",
                 "coordinates": [
@@ -1467,7 +1779,14 @@
         },
         {
             "type": "Feature",
-            "properties": { "cell": 229, "z": 4 },
+            "properties": {
+                "cell": 1229,
+                "z": 4,
+                "fov": 1,
+                "global_z": -12.6,
+                "x_offset": 200,
+                "y_offset": 0
+            },
             "geometry": {
                 "type": "Polygon",
                 "coordinates": [
@@ -1483,7 +1802,14 @@
         },
         {
             "type": "Feature",
-            "properties": { "cell": 229, "z": 5 },
+            "properties": {
+                "cell": 1229,
+                "z": 5,
+                "fov": 1,
+                "global_z": -12.0,
+                "x_offset": 200,
+                "y_offset": 0
+            },
             "geometry": {
                 "type": "Polygon",
                 "coordinates": [
@@ -1500,7 +1826,14 @@
         },
         {
             "type": "Feature",
-            "properties": { "cell": 229, "z": 6 },
+            "properties": {
+                "cell": 1229,
+                "z": 6,
+                "fov": 1,
+                "global_z": -11.4,
+                "x_offset": 200,
+                "y_offset": 0
+            },
             "geometry": {
                 "type": "Polygon",
                 "coordinates": [
@@ -1517,7 +1850,14 @@
         },
         {
             "type": "Feature",
-            "properties": { "cell": 229, "z": 7 },
+            "properties": {
+                "cell": 1229,
+                "z": 7,
+                "fov": 1,
+                "global_z": -10.8,
+                "x_offset": 200,
+                "y_offset": 0
+            },
             "geometry": {
                 "type": "Polygon",
                 "coordinates": [
@@ -1533,7 +1873,14 @@
         },
         {
             "type": "Feature",
-            "properties": { "cell": 229, "z": 8 },
+            "properties": {
+                "cell": 1229,
+                "z": 8,
+                "fov": 1,
+                "global_z": -10.2,
+                "x_offset": 200,
+                "y_offset": 0
+            },
             "geometry": {
                 "type": "Polygon",
                 "coordinates": [
@@ -1553,7 +1900,14 @@
         },
         {
             "type": "Feature",
-            "properties": { "cell": 229, "z": 9 },
+            "properties": {
+                "cell": 1229,
+                "z": 9,
+                "fov": 1,
+                "global_z": -9.6,
+                "x_offset": 200,
+                "y_offset": 0
+            },
             "geometry": {
                 "type": "Polygon",
                 "coordinates": [
@@ -1573,7 +1927,14 @@
         },
         {
             "type": "Feature",
-            "properties": { "cell": 392, "z": 2 },
+            "properties": {
+                "cell": 1392,
+                "z": 2,
+                "fov": 1,
+                "global_z": -13.8,
+                "x_offset": 200,
+                "y_offset": 0
+            },
             "geometry": {
                 "type": "Polygon",
                 "coordinates": [
@@ -1589,7 +1950,14 @@
         },
         {
             "type": "Feature",
-            "properties": { "cell": 395, "z": 1 },
+            "properties": {
+                "cell": 1395,
+                "z": 1,
+                "fov": 1,
+                "global_z": -14.4,
+                "x_offset": 200,
+                "y_offset": 0
+            },
             "geometry": {
                 "type": "Polygon",
                 "coordinates": [
@@ -1614,7 +1982,14 @@
         },
         {
             "type": "Feature",
-            "properties": { "cell": 395, "z": 2 },
+            "properties": {
+                "cell": 1395,
+                "z": 2,
+                "fov": 1,
+                "global_z": -13.8,
+                "x_offset": 200,
+                "y_offset": 0
+            },
             "geometry": {
                 "type": "Polygon",
                 "coordinates": [
@@ -1646,7 +2021,14 @@
         },
         {
             "type": "Feature",
-            "properties": { "cell": 395, "z": 3 },
+            "properties": {
+                "cell": 1395,
+                "z": 3,
+                "fov": 1,
+                "global_z": -13.2,
+                "x_offset": 200,
+                "y_offset": 0
+            },
             "geometry": {
                 "type": "Polygon",
                 "coordinates": [
@@ -1680,7 +2062,14 @@
         },
         {
             "type": "Feature",
-            "properties": { "cell": 395, "z": 4 },
+            "properties": {
+                "cell": 1395,
+                "z": 4,
+                "fov": 1,
+                "global_z": -12.6,
+                "x_offset": 200,
+                "y_offset": 0
+            },
             "geometry": {
                 "type": "Polygon",
                 "coordinates": [
@@ -1713,7 +2102,14 @@
         },
         {
             "type": "Feature",
-            "properties": { "cell": 395, "z": 5 },
+            "properties": {
+                "cell": 1395,
+                "z": 5,
+                "fov": 1,
+                "global_z": -12.0,
+                "x_offset": 200,
+                "y_offset": 0
+            },
             "geometry": {
                 "type": "Polygon",
                 "coordinates": [
@@ -1747,7 +2143,14 @@
         },
         {
             "type": "Feature",
-            "properties": { "cell": 395, "z": 6 },
+            "properties": {
+                "cell": 1395,
+                "z": 6,
+                "fov": 1,
+                "global_z": -11.4,
+                "x_offset": 200,
+                "y_offset": 0
+            },
             "geometry": {
                 "type": "Polygon",
                 "coordinates": [
@@ -1780,7 +2183,14 @@
         },
         {
             "type": "Feature",
-            "properties": { "cell": 395, "z": 7 },
+            "properties": {
+                "cell": 1395,
+                "z": 7,
+                "fov": 1,
+                "global_z": -10.8,
+                "x_offset": 200,
+                "y_offset": 0
+            },
             "geometry": {
                 "type": "Polygon",
                 "coordinates": [
@@ -1809,7 +2219,14 @@
         },
         {
             "type": "Feature",
-            "properties": { "cell": 395, "z": 8 },
+            "properties": {
+                "cell": 1395,
+                "z": 8,
+                "fov": 1,
+                "global_z": -10.2,
+                "x_offset": 200,
+                "y_offset": 0
+            },
             "geometry": {
                 "type": "Polygon",
                 "coordinates": [
@@ -1835,7 +2252,14 @@
         },
         {
             "type": "Feature",
-            "properties": { "cell": 437, "z": 2 },
+            "properties": {
+                "cell": 1437,
+                "z": 2,
+                "fov": 1,
+                "global_z": -13.8,
+                "x_offset": 200,
+                "y_offset": 0
+            },
             "geometry": {
                 "type": "Polygon",
                 "coordinates": [
@@ -1853,7 +2277,14 @@
         },
         {
             "type": "Feature",
-            "properties": { "cell": 437, "z": 3 },
+            "properties": {
+                "cell": 1437,
+                "z": 3,
+                "fov": 1,
+                "global_z": -13.2,
+                "x_offset": 200,
+                "y_offset": 0
+            },
             "geometry": {
                 "type": "Polygon",
                 "coordinates": [
@@ -1882,7 +2313,14 @@
         },
         {
             "type": "Feature",
-            "properties": { "cell": 437, "z": 4 },
+            "properties": {
+                "cell": 1437,
+                "z": 4,
+                "fov": 1,
+                "global_z": -12.6,
+                "x_offset": 200,
+                "y_offset": 0
+            },
             "geometry": {
                 "type": "Polygon",
                 "coordinates": [
@@ -1926,7 +2364,14 @@
         },
         {
             "type": "Feature",
-            "properties": { "cell": 437, "z": 5 },
+            "properties": {
+                "cell": 1437,
+                "z": 5,
+                "fov": 1,
+                "global_z": -12.0,
+                "x_offset": 200,
+                "y_offset": 0
+            },
             "geometry": {
                 "type": "Polygon",
                 "coordinates": [
@@ -1948,7 +2393,14 @@
         },
         {
             "type": "Feature",
-            "properties": { "cell": 437, "z": 6 },
+            "properties": {
+                "cell": 1437,
+                "z": 6,
+                "fov": 1,
+                "global_z": -11.4,
+                "x_offset": 200,
+                "y_offset": 0
+            },
             "geometry": {
                 "type": "Polygon",
                 "coordinates": [
@@ -1985,7 +2437,14 @@
         },
         {
             "type": "Feature",
-            "properties": { "cell": 437, "z": 7 },
+            "properties": {
+                "cell": 1437,
+                "z": 7,
+                "fov": 1,
+                "global_z": -10.8,
+                "x_offset": 200,
+                "y_offset": 0
+            },
             "geometry": {
                 "type": "Polygon",
                 "coordinates": [
@@ -2021,7 +2480,14 @@
         },
         {
             "type": "Feature",
-            "properties": { "cell": 437, "z": 8 },
+            "properties": {
+                "cell": 1437,
+                "z": 8,
+                "fov": 1,
+                "global_z": -10.2,
+                "x_offset": 200,
+                "y_offset": 0
+            },
             "geometry": {
                 "type": "Polygon",
                 "coordinates": [
@@ -2049,7 +2515,14 @@
         },
         {
             "type": "Feature",
-            "properties": { "cell": 437, "z": 9 },
+            "properties": {
+                "cell": 1437,
+                "z": 9,
+                "fov": 1,
+                "global_z": -9.6,
+                "x_offset": 200,
+                "y_offset": 0
+            },
             "geometry": {
                 "type": "Polygon",
                 "coordinates": [
@@ -2077,7 +2550,14 @@
         },
         {
             "type": "Feature",
-            "properties": { "cell": 440, "z": 2 },
+            "properties": {
+                "cell": 1440,
+                "z": 2,
+                "fov": 1,
+                "global_z": -13.8,
+                "x_offset": 200,
+                "y_offset": 0
+            },
             "geometry": {
                 "type": "Polygon",
                 "coordinates": [
@@ -2096,7 +2576,14 @@
         },
         {
             "type": "Feature",
-            "properties": { "cell": 440, "z": 3 },
+            "properties": {
+                "cell": 1440,
+                "z": 3,
+                "fov": 1,
+                "global_z": -13.2,
+                "x_offset": 200,
+                "y_offset": 0
+            },
             "geometry": {
                 "type": "Polygon",
                 "coordinates": [
@@ -2118,7 +2605,14 @@
         },
         {
             "type": "Feature",
-            "properties": { "cell": 440, "z": 4 },
+            "properties": {
+                "cell": 1440,
+                "z": 4,
+                "fov": 1,
+                "global_z": -12.6,
+                "x_offset": 200,
+                "y_offset": 0
+            },
             "geometry": {
                 "type": "Polygon",
                 "coordinates": [
@@ -2142,7 +2636,14 @@
         },
         {
             "type": "Feature",
-            "properties": { "cell": 440, "z": 5 },
+            "properties": {
+                "cell": 1440,
+                "z": 5,
+                "fov": 1,
+                "global_z": -12.0,
+                "x_offset": 200,
+                "y_offset": 0
+            },
             "geometry": {
                 "type": "Polygon",
                 "coordinates": [
@@ -2173,7 +2674,14 @@
         },
         {
             "type": "Feature",
-            "properties": { "cell": 440, "z": 6 },
+            "properties": {
+                "cell": 1440,
+                "z": 6,
+                "fov": 1,
+                "global_z": -11.4,
+                "x_offset": 200,
+                "y_offset": 0
+            },
             "geometry": {
                 "type": "Polygon",
                 "coordinates": [
@@ -2204,7 +2712,14 @@
         },
         {
             "type": "Feature",
-            "properties": { "cell": 440, "z": 7 },
+            "properties": {
+                "cell": 1440,
+                "z": 7,
+                "fov": 1,
+                "global_z": -10.8,
+                "x_offset": 200,
+                "y_offset": 0
+            },
             "geometry": {
                 "type": "Polygon",
                 "coordinates": [
@@ -2228,7 +2743,14 @@
         },
         {
             "type": "Feature",
-            "properties": { "cell": 440, "z": 8 },
+            "properties": {
+                "cell": 1440,
+                "z": 8,
+                "fov": 1,
+                "global_z": -10.2,
+                "x_offset": 200,
+                "y_offset": 0
+            },
             "geometry": {
                 "type": "Polygon",
                 "coordinates": [
@@ -2250,7 +2772,14 @@
         },
         {
             "type": "Feature",
-            "properties": { "cell": 440, "z": 9 },
+            "properties": {
+                "cell": 1440,
+                "z": 9,
+                "fov": 1,
+                "global_z": -9.6,
+                "x_offset": 200,
+                "y_offset": 0
+            },
             "geometry": {
                 "type": "Polygon",
                 "coordinates": [
@@ -2272,7 +2801,14 @@
         },
         {
             "type": "Feature",
-            "properties": { "cell": 476, "z": 3 },
+            "properties": {
+                "cell": 1476,
+                "z": 3,
+                "fov": 1,
+                "global_z": -13.2,
+                "x_offset": 200,
+                "y_offset": 0
+            },
             "geometry": {
                 "type": "Polygon",
                 "coordinates": [
@@ -2288,7 +2824,14 @@
         },
         {
             "type": "Feature",
-            "properties": { "cell": 476, "z": 4 },
+            "properties": {
+                "cell": 1476,
+                "z": 4,
+                "fov": 1,
+                "global_z": -12.6,
+                "x_offset": 200,
+                "y_offset": 0
+            },
             "geometry": {
                 "type": "Polygon",
                 "coordinates": [
@@ -2313,7 +2856,14 @@
         },
         {
             "type": "Feature",
-            "properties": { "cell": 476, "z": 5 },
+            "properties": {
+                "cell": 1476,
+                "z": 5,
+                "fov": 1,
+                "global_z": -12.0,
+                "x_offset": 200,
+                "y_offset": 0
+            },
             "geometry": {
                 "type": "Polygon",
                 "coordinates": [
@@ -2337,7 +2887,14 @@
         },
         {
             "type": "Feature",
-            "properties": { "cell": 476, "z": 6 },
+            "properties": {
+                "cell": 1476,
+                "z": 6,
+                "fov": 1,
+                "global_z": -11.4,
+                "x_offset": 200,
+                "y_offset": 0
+            },
             "geometry": {
                 "type": "Polygon",
                 "coordinates": [
@@ -2361,7 +2918,14 @@
         },
         {
             "type": "Feature",
-            "properties": { "cell": 476, "z": 7 },
+            "properties": {
+                "cell": 1476,
+                "z": 7,
+                "fov": 1,
+                "global_z": -10.8,
+                "x_offset": 200,
+                "y_offset": 0
+            },
             "geometry": {
                 "type": "Polygon",
                 "coordinates": [
@@ -2385,7 +2949,14 @@
         },
         {
             "type": "Feature",
-            "properties": { "cell": 476, "z": 8 },
+            "properties": {
+                "cell": 1476,
+                "z": 8,
+                "fov": 1,
+                "global_z": -10.2,
+                "x_offset": 200,
+                "y_offset": 0
+            },
             "geometry": {
                 "type": "Polygon",
                 "coordinates": [
@@ -2410,7 +2981,14 @@
         },
         {
             "type": "Feature",
-            "properties": { "cell": 476, "z": 9 },
+            "properties": {
+                "cell": 1476,
+                "z": 9,
+                "fov": 1,
+                "global_z": -9.6,
+                "x_offset": 200,
+                "y_offset": 0
+            },
             "geometry": {
                 "type": "Polygon",
                 "coordinates": [
@@ -2447,7 +3025,14 @@
         },
         {
             "type": "Feature",
-            "properties": { "cell": 478, "z": 3 },
+            "properties": {
+                "cell": 1478,
+                "z": 3,
+                "fov": 1,
+                "global_z": -13.2,
+                "x_offset": 200,
+                "y_offset": 0
+            },
             "geometry": {
                 "type": "Polygon",
                 "coordinates": [
@@ -2489,7 +3074,14 @@
         },
         {
             "type": "Feature",
-            "properties": { "cell": 478, "z": 4 },
+            "properties": {
+                "cell": 1478,
+                "z": 4,
+                "fov": 1,
+                "global_z": -12.6,
+                "x_offset": 200,
+                "y_offset": 0
+            },
             "geometry": {
                 "type": "Polygon",
                 "coordinates": [
@@ -2540,7 +3132,14 @@
         },
         {
             "type": "Feature",
-            "properties": { "cell": 478, "z": 5 },
+            "properties": {
+                "cell": 1478,
+                "z": 5,
+                "fov": 1,
+                "global_z": -12.0,
+                "x_offset": 200,
+                "y_offset": 0
+            },
             "geometry": {
                 "type": "Polygon",
                 "coordinates": [
@@ -2579,7 +3178,14 @@
         },
         {
             "type": "Feature",
-            "properties": { "cell": 478, "z": 6 },
+            "properties": {
+                "cell": 1478,
+                "z": 6,
+                "fov": 1,
+                "global_z": -11.4,
+                "x_offset": 200,
+                "y_offset": 0
+            },
             "geometry": {
                 "type": "Polygon",
                 "coordinates": [
@@ -2620,7 +3226,14 @@
         },
         {
             "type": "Feature",
-            "properties": { "cell": 478, "z": 7 },
+            "properties": {
+                "cell": 1478,
+                "z": 7,
+                "fov": 1,
+                "global_z": -10.8,
+                "x_offset": 200,
+                "y_offset": 0
+            },
             "geometry": {
                 "type": "Polygon",
                 "coordinates": [
@@ -2670,7 +3283,14 @@
         },
         {
             "type": "Feature",
-            "properties": { "cell": 478, "z": 8 },
+            "properties": {
+                "cell": 1478,
+                "z": 8,
+                "fov": 1,
+                "global_z": -10.2,
+                "x_offset": 200,
+                "y_offset": 0
+            },
             "geometry": {
                 "type": "Polygon",
                 "coordinates": [
@@ -2722,7 +3342,14 @@
         },
         {
             "type": "Feature",
-            "properties": { "cell": 478, "z": 9 },
+            "properties": {
+                "cell": 1478,
+                "z": 9,
+                "fov": 1,
+                "global_z": -9.6,
+                "x_offset": 200,
+                "y_offset": 0
+            },
             "geometry": {
                 "type": "Polygon",
                 "coordinates": [
@@ -2765,7 +3392,14 @@
         },
         {
             "type": "Feature",
-            "properties": { "cell": 639, "z": 7 },
+            "properties": {
+                "cell": 1639,
+                "z": 7,
+                "fov": 1,
+                "global_z": -10.8,
+                "x_offset": 200,
+                "y_offset": 0
+            },
             "geometry": {
                 "type": "Polygon",
                 "coordinates": [
@@ -2784,7 +3418,14 @@
         },
         {
             "type": "Feature",
-            "properties": { "cell": 639, "z": 8 },
+            "properties": {
+                "cell": 1639,
+                "z": 8,
+                "fov": 1,
+                "global_z": -10.2,
+                "x_offset": 200,
+                "y_offset": 0
+            },
             "geometry": {
                 "type": "Polygon",
                 "coordinates": [
@@ -2813,7 +3454,14 @@
         },
         {
             "type": "Feature",
-            "properties": { "cell": 639, "z": 9 },
+            "properties": {
+                "cell": 1639,
+                "z": 9,
+                "fov": 1,
+                "global_z": -9.6,
+                "x_offset": 200,
+                "y_offset": 0
+            },
             "geometry": {
                 "type": "Polygon",
                 "coordinates": [
@@ -2855,7 +3503,14 @@
         },
         {
             "type": "Feature",
-            "properties": { "cell": 641, "z": 7 },
+            "properties": {
+                "cell": 1641,
+                "z": 7,
+                "fov": 1,
+                "global_z": -10.8,
+                "x_offset": 200,
+                "y_offset": 0
+            },
             "geometry": {
                 "type": "Polygon",
                 "coordinates": [
@@ -2880,7 +3535,14 @@
         },
         {
             "type": "Feature",
-            "properties": { "cell": 641, "z": 8 },
+            "properties": {
+                "cell": 1641,
+                "z": 8,
+                "fov": 1,
+                "global_z": -10.2,
+                "x_offset": 200,
+                "y_offset": 0
+            },
             "geometry": {
                 "type": "Polygon",
                 "coordinates": [
@@ -2907,7 +3569,14 @@
         },
         {
             "type": "Feature",
-            "properties": { "cell": 641, "z": 9 },
+            "properties": {
+                "cell": 1641,
+                "z": 9,
+                "fov": 1,
+                "global_z": -9.6,
+                "x_offset": 200,
+                "y_offset": 0
+            },
             "geometry": {
                 "type": "Polygon",
                 "coordinates": [
@@ -2935,7 +3604,14 @@
         },
         {
             "type": "Feature",
-            "properties": { "cell": 642, "z": 7 },
+            "properties": {
+                "cell": 1642,
+                "z": 7,
+                "fov": 1,
+                "global_z": -10.8,
+                "x_offset": 200,
+                "y_offset": 0
+            },
             "geometry": {
                 "type": "Polygon",
                 "coordinates": [
@@ -2956,7 +3632,14 @@
         },
         {
             "type": "Feature",
-            "properties": { "cell": 642, "z": 8 },
+            "properties": {
+                "cell": 1642,
+                "z": 8,
+                "fov": 1,
+                "global_z": -10.2,
+                "x_offset": 200,
+                "y_offset": 0
+            },
             "geometry": {
                 "type": "Polygon",
                 "coordinates": [
@@ -2985,7 +3668,14 @@
         },
         {
             "type": "Feature",
-            "properties": { "cell": 642, "z": 9 },
+            "properties": {
+                "cell": 1642,
+                "z": 9,
+                "fov": 1,
+                "global_z": -9.6,
+                "x_offset": 200,
+                "y_offset": 0
+            },
             "geometry": {
                 "type": "Polygon",
                 "coordinates": [
@@ -3020,7 +3710,14 @@
         },
         {
             "type": "Feature",
-            "properties": { "cell": 730, "z": 9 },
+            "properties": {
+                "cell": 1730,
+                "z": 9,
+                "fov": 1,
+                "global_z": -9.6,
+                "x_offset": 200,
+                "y_offset": 0
+            },
             "geometry": {
                 "type": "Polygon",
                 "coordinates": [
@@ -3049,7 +3746,14 @@
         },
         {
             "type": "Feature",
-            "properties": { "cell": 731, "z": 9 },
+            "properties": {
+                "cell": 1731,
+                "z": 9,
+                "fov": 1,
+                "global_z": -9.6,
+                "x_offset": 200,
+                "y_offset": 0
+            },
             "geometry": {
                 "type": "Polygon",
                 "coordinates": [
@@ -3071,7 +3775,14 @@
         },
         {
             "type": "Feature",
-            "properties": { "cell": 732, "z": 9 },
+            "properties": {
+                "cell": 1732,
+                "z": 9,
+                "fov": 1,
+                "global_z": -9.6,
+                "x_offset": 200,
+                "y_offset": 0
+            },
             "geometry": {
                 "type": "Polygon",
                 "coordinates": [
