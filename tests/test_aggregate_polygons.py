@@ -5,6 +5,7 @@ import pytest
 import fishtank as ft
 
 
+@pytest.mark.slow
 def test_aggregate_polygons_3d(caplog):
     parser = ft.scripts.aggregate_polygons.get_parser()
     args = parser.parse_args(
@@ -31,6 +32,7 @@ def test_aggregate_polygons_3d(caplog):
     assert "Saving polygons." in caplog.text
 
 
+@pytest.mark.slow
 def test_aggregate_polygons_2d(caplog):
     parser = ft.scripts.aggregate_polygons.get_parser()
     args = parser.parse_args(
