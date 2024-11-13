@@ -38,8 +38,10 @@ def test_read_xml(xml_path):
         assert attrs[key] == expected[key]
 
 
-def test_list_fovs(img_path):
+def test_list_fovs(img_path, polygons_path):
     fovs = ft.io.list_fovs(img_path)
+    assert fovs == [0, 1]
+    fovs = ft.io.list_fovs(polygons_path, file_pattern="polygons_{fov}.json")
     assert fovs == [0, 1]
 
 

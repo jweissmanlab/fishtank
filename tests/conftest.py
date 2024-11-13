@@ -65,14 +65,23 @@ def corr_path() -> Path:
 
 
 @pytest.fixture(scope="session")
-def polygons() -> gpd.GeoDataFrame:
-    yield gpd.read_file("tests/data/polygons/polygons_0.json")
+def polygons_path() -> Path:
+    yield Path("tests/data/polygons/")
 
 
 @pytest.fixture(scope="session")
-def overlapping_polygons() -> gpd.GeoDataFrame:
-    polygons_0 = gpd.read_file("tests/data/polygons/polygons_0.json")
-    polygons_1 = gpd.read_file("tests/data/polygons/polygons_1.json")
+def polygons(polygons_path) -> gpd.GeoDataFrame:
+    polygons_0 = gpd.read_file(polygons_path / "polygons_0.json")
+    polygons_0.set_crs(None, allow_override=True, inplace=True)
+    yield polygons_0
+
+
+@pytest.fixture(scope="session")
+def overlapping_polygons(polygons_path) -> gpd.GeoDataFrame:
+    polygons_0 = gpd.read_file(polygons_path / "polygons_0.json")
+    polygons_0.set_crs(None, allow_override=True, inplace=True)
+    polygons_1 = gpd.read_file(polygons_path / "polygons_1.json")
+    polygons_1.set_crs(None, allow_override=True, inplace=True)
     polygons_1.geometry = polygons_1.geometry.translate(xoff=200)
     yield gpd.GeoDataFrame(pd.concat([polygons_0, polygons_1]))
 

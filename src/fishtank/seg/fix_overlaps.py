@@ -12,16 +12,16 @@ from tqdm import tqdm
 from fishtank.utils import tile_polygons
 
 
-def _get_edge_polygons(polygons, fov="fov", cell="cell"):
+def _get_edge_polygons(polygons, fov="fov", cell="cell", buffer=-10):
     """Split the polygons into edge and interior sets."""
     fov_bounds = (
         polygons.groupby(fov).geometry.apply(lambda x: shp.geometry.box(*x.total_bounds)).reset_index(name="geometry")
     )
     edge_region = fov_bounds.overlay(fov_bounds, how="intersection").query(f"{fov}_1 != {fov}_2").union_all()
-    polygons["edge"] = polygons.geometry.intersects(edge_region)
-    polygons["edge"] = polygons.groupby(cell)["edge"].transform("any")
-    edge_polygons = polygons[polygons["edge"]].copy()
-    interior_polygons = polygons[~polygons["edge"]].copy()
+    polygons_2d = polygons.dissolve("cell").reset_index()
+    edge_cells = polygons_2d.loc[polygons_2d.geometry.intersects(edge_region), cell]
+    edge_polygons = polygons[polygons[cell].isin(edge_cells)].copy()
+    interior_polygons = polygons[~polygons[cell].isin(edge_cells)].copy()
     return edge_polygons, interior_polygons
 
 
@@ -58,7 +58,7 @@ def _area_3d(polygon):
     return float(np.sum(polygon.geometry.area))
 
 
-def _fix_overlaps(polygons, min_ioa=0.2, cell="cell", z="global_z", fov="fov"):
+def _fix_overlaps(polygons, min_ioa=0.2, cell="cell", z="global_z", fov="fov", tolerance=0.5):
     """Fix overlapping polygons by merging > min_ioa."""
     polygons_2d = polygons.dissolve(cell).reset_index().drop(columns=[z])
     polygons_3d = {i: polygons.loc[polygons[cell] == i, ["geometry", z]] for i in polygons[cell].unique()}
@@ -79,10 +79,12 @@ def _fix_overlaps(polygons, min_ioa=0.2, cell="cell", z="global_z", fov="fov"):
                     overlap_graph.add_edge(neighbor, edge[1])
             overlap_graph.remove_node(edge[0])
             del polygons_3d[edge[0]]
+            union.geometry = union.geometry.simplify(tolerance).make_valid()
             polygons_3d[edge[1]] = union
         # Otherwise, subtract one polygon from the other
         else:
             overlap_graph.remove_edge(*edge)
+            difference.geometry = difference.geometry.simplify(tolerance).make_valid()
             polygons_3d[edge[0]] = difference
     polygons_3d = gpd.GeoDataFrame(
         pd.concat(polygons_3d).reset_index(names=["cell", "drop"]), geometry="geometry"
@@ -99,7 +101,8 @@ def fix_overlaps(
     z: str | None = "global_z",
     fov: str = "fov",
     tile_shape: tuple = (500, 500),
-    tile_buffer: int = 25,
+    tolerance: float = 0.5,
+    diameter: float = 20,
 ) -> gpd.GeoDataFrame:
     """Fix overlapping polygons from adjacent fields of view.
 
@@ -117,8 +120,10 @@ def fix_overlaps(
         the name of the fov column in the GeoDataFrame.
     tile_shape
         the shape of the tiles to divide the polygons into for parallel processing.
-    tile_buffer
-        the buffer to add to the tiles to ensure overlapping polygons are included.
+    tolerance
+        the tolerance for simplifying the polygons.
+    diameter
+        Approximate diameter of the polygons.
 
     Returns
     -------
@@ -132,11 +137,11 @@ def fix_overlaps(
         z = "_z"
         polygons[z] = 0
     logger.info("Splitting polygons into edge and interior sets.")
-    edge_polygons, interior_polygons = _get_edge_polygons(polygons, fov, cell)
+    edge_polygons, interior_polygons = _get_edge_polygons(polygons, fov=fov, cell=cell, buffer=diameter / 2)
     logger.info("Splitting edge polygons into tiles.")
-    edge_tiles = tile_polygons(edge_polygons, tile_shape=tile_shape, buffer=tile_buffer, cell=cell)
+    edge_tiles = tile_polygons(edge_polygons, tile_shape=tile_shape, buffer=diameter, cell=cell)
     logger.info("Fixing overlapping polygons in parallel.")
-    parallel_func = partial(_fix_overlaps, min_ioa=min_ioa, cell=cell, z=z, fov=fov)
+    parallel_func = partial(_fix_overlaps, min_ioa=min_ioa, cell=cell, z=z, fov=fov, tolerance=tolerance)
     with mp.Pool(mp.cpu_count()) as pool:
         edge_tiles = list(tqdm(pool.imap_unordered(parallel_func, edge_tiles), total=len(edge_tiles)))
     polygons = [tile.query("in_tile").drop(columns="in_tile") for tile in edge_tiles] + [interior_polygons]

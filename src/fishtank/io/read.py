@@ -53,14 +53,14 @@ def read_xml(path: str | pathlib.Path, parse: bool = True) -> dict:
 
 
 def list_fovs(path: str | pathlib.Path, file_pattern: str = "{series}/Conv_zscan_{fov}.dax") -> list:
-    """List FOVs in a MERFISH experiment.
+    """List FOV files.
 
     Parameters
     ----------
     path
-        Path to image files.
+        Directory containing files.
     file_pattern
-        Pattern for image files.
+        Name pattern of files.
 
     Returns
     -------
@@ -68,18 +68,24 @@ def list_fovs(path: str | pathlib.Path, file_pattern: str = "{series}/Conv_zscan
         a list of field of view numbers.
     """
     path = pathlib.Path(path)
-    series = [d.name for d in path.iterdir() if d.is_dir()]
-    fovs = []
-    for s in series:
-        try:
-            file_pattern = _determine_fov_format(path, 1, s, file_pattern)
-            for f in range(1000):
-                if (path / file_pattern.format(series=s, fov=f)).exists():
-                    fovs.append(f)
+    fovs = set()
+
+    # List possible series
+    if "{series}" in file_pattern:
+        series_list = [d.name for d in path.iterdir() if d.is_dir()]
+    else:
+        series_list = [""]
+
+    for series in series_list:
+        fov_pattern = file_pattern.format(series=series, fov="*")
+        prefix, suffix = fov_pattern.split("*")
+        fov_files = list(path.glob(fov_pattern))
+        for f in fov_files:
+            fovs.add(int(str(f.relative_to(path))[len(prefix) : -len(suffix)]))
+        if len(fovs) > 0:
             break
-        except ValueError:
-            continue
-    return fovs
+
+    return sorted(fovs)
 
 
 def read_dax(

@@ -21,9 +21,9 @@ logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(message)s", date
 def get_parser():
     """Get parser for cellpose script"""
     parser = argparse.ArgumentParser(add_help=False)
-    parser.add_argument("--input", type=parse_path, required=True, help="Input file directory")
-    parser.add_argument("--fov", type=int, required=True, help="Field of view to process")
-    parser.add_argument("--output", type=parse_path, default="./cellpose_polygons", help="Output directory")
+    parser.add_argument("-i", "--input", type=parse_path, required=True, help="Input file directory")
+    parser.add_argument("-f", "--fov", type=int, required=True, help="Field of view to process")
+    parser.add_argument("-o", "--output", type=parse_path, default="./cellpose_polygons", help="Output directory")
     parser.add_argument(
         "--channels", type=parse_list, required=True, help="Channel for segmentation (e.g., DAPI or PolyT,DAPI)"
     )
@@ -47,7 +47,7 @@ def get_parser():
         "--model_args", type=parse_dict, default={}, help="Additional model arguments (e.g., key1=val1,key2=val2)"
     )
     parser.add_argument("--clear_border", type=bool, default=False, help="Remove cells touching the image border")
-    parser.add_argument("--min_area", type=int, default=1000, help="Minimum area for a cell to be kept")
+    parser.add_argument("--min_size", type=int, default=1000, help="Minimum area or volume for a cell to be kept")
     parser.add_argument("--filter", type=str, default=None, help="Filter to apply to the image before segmentation")
     parser.add_argument(
         "--filter_args", type=parse_dict, default={}, help="Additional filter arguments (e.g., key1=val1,key2=val2)"
@@ -133,20 +133,20 @@ def main(args):
         polygons["z"] = np.array(args.z_slices)[polygons["z"].values]
     polygons["global_z"] = np.array(attrs["z_offsets"])[polygons["z"].values]
     # Filter small cells
-    logger.info(f"Filtering out small cells with area < {args.min_area}")
+    logger.info(f"Filtering out small cells with size < {args.min_size}")
     polygons.index = polygons["cell"].values
     polygons["area"] = polygons.area
     polygons["area"] = polygons.groupby("cell")["area"].transform("sum")
     n_before = polygons["cell"].nunique()
-    polygons = polygons[polygons["area"] > args.min_area].copy()
+    polygons = polygons[polygons["area"] > args.min_size].copy()
     n_after = polygons["cell"].nunique()
     logger.info(f"Removed {n_before - n_after} out of {n_before} total cells")
     # Save results
-    logger.info(f"Saving polygons to {args.output}")
+    logger.info(f"Saving polygons to {args.output} / polygons_{args.fov}.json")
     polygons["fov"] = args.fov
     polygons["x_offset"] = attrs["stage_position"][0]
     polygons["y_offset"] = attrs["stage_position"][1]
     args.output.mkdir(parents=True, exist_ok=True)
     with warnings.catch_warnings():
         warnings.simplefilter("ignore")
-        polygons.to_file(args.output / f"fov{args.fov}_polygons.json", driver="GeoJSON")
+        polygons.to_file(args.output / f"polygons_{args.fov}.json", driver="GeoJSON")
