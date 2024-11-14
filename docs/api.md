@@ -41,6 +41,7 @@
     :toctree: generated
 
     filters.deconwolf
+    filters.unsharp_mask
 
 ```
 
