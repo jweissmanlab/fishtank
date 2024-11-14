@@ -11,6 +11,7 @@
 
     io.read_img
     io.read_fov
+    io.read_mosaic
     io.list_fovs
     io.read_dax
     io.read_xml
@@ -72,5 +73,6 @@
 
     utils.tile_polygons
     utils.create_mosaic
+    utils.determine_fov_format
 
 ```

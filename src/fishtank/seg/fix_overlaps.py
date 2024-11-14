@@ -104,7 +104,7 @@ def fix_overlaps(
     tolerance: float = 0.5,
     diameter: float = 20,
 ) -> gpd.GeoDataFrame:
-    """Fix overlapping polygons from adjacent fields of view.
+    """Fix overlapping polygons from adjacent FOVs.
 
     Parameters
     ----------

@@ -1,6 +1,39 @@
+import os
+from pathlib import Path
+
 import geopandas as gpd
 import numpy as np
 import shapely as shp
+
+
+def determine_fov_format(
+    path: str | Path, series: int | str, file_pattern: str = "{series}/Conv_zscan_{fov}.dax", fov: int | str = 1
+) -> str:
+    """Determine FOV format.
+
+    Parameters
+    ----------
+    path
+        Path to files
+    series
+        Series name.
+    file_pattern
+        Naming pattern of fov files.
+    fov
+        Field of view number.
+
+    Returns
+    -------
+    file_pattern
+        a file pattern with the correct fov format.
+    """
+    path = Path(path)
+    for format in ["{fov:01d}", "{fov:02d}", "{fov:03d}"]:
+        if format in file_pattern:
+            return file_pattern
+        if os.path.exists(path / file_pattern.replace("{fov}", format).format(fov=fov, series=series)):
+            return file_pattern.replace("{fov}", format)
+    raise ValueError(f"Could not find file matching {file_pattern.format(fov=fov,series=series)} in {path}")
 
 
 def tile_polygons(
@@ -47,7 +80,7 @@ def create_mosaic(
     positions: list,
     micron_per_pixel: float = 0.107,
 ) -> tuple[np.ndarray, np.ndarray]:
-    """Split polygons into tiles.
+    """Create mosaic from images.
 
     Parameters
     ----------

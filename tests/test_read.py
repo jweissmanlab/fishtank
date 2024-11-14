@@ -116,5 +116,16 @@ def test_read_fov(img_path, channels):
     assert attrs["colors"] == [748, 748, 748]
 
 
+def test_read_mosaic(img_path):
+    mosaic, bounds = ft.io.read_mosaic(img_path, series="H0R1", colors=405, z_slices=[3], downsample=False)
+    assert mosaic.shape == (288, 488)
+    assert bounds[0] == pytest.approx(400, abs=1)
+    assert bounds[2] == pytest.approx(452, abs=1)
+    mosaic, bounds = ft.io.read_mosaic(img_path, series="H0R1", colors=405, z_slices=[3], downsample=4)
+    assert mosaic.shape == (72, 122)
+    assert bounds[0] == pytest.approx(400, abs=1)
+    assert bounds[2] == pytest.approx(452, abs=1)
+
+
 if __name__ == "__main__":
     pytest.main(["-v", __file__])

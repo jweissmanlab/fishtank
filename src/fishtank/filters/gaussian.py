@@ -8,7 +8,7 @@ def unsharp_mask(
     truncate: float = 2,
     channel_axis: int | None = None,
 ) -> np.ndarray:
-    """Similar to skimage.filters.unsharp_mask, with truncation and without the option to adjust the amount.
+    """Gaussian unsharp mask.
 
     Parameters
     ----------

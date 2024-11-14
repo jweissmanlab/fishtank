@@ -7,6 +7,8 @@ import numpy as np
 import pandas as pd
 import skimage as ski
 
+from fishtank.utils import create_mosaic, determine_fov_format
+
 
 def _xml_to_dict(element):
     """Convert xml element to dictionary."""
@@ -135,7 +137,7 @@ def read_img(
     color_order: list = None,
     plugin: str = None,
     **plugin_args,
-) -> np.ndarray:
+) -> tuple[np.ndarray, dict]:
     """Read image file.
 
     Parameters
@@ -255,14 +257,6 @@ def read_color_usage(path: str | pathlib.Path) -> pd.DataFrame:
     return channels
 
 
-def _determine_fov_format(path, fov, series, file_pattern):
-    """Determine the fov field format."""
-    for format in ["{fov:01d}", "{fov:02d}", "{fov:03d}"]:
-        if os.path.exists(path / file_pattern.replace("{fov}", format).format(fov=fov, series=series)):
-            return file_pattern.replace("{fov}", format)
-    raise ValueError(f"Could not find file matching {file_pattern.format(fov=fov,series=series)} in {path}")
-
-
 def read_fov(
     path: str | pathlib.Path,
     fov: int | str,
@@ -273,7 +267,7 @@ def read_fov(
     z_slices: list = None,
     z_project: bool = False,
     ref_series: int | str = None,
-):
+) -> tuple[np.ndarray, dict]:
     """Read FOV from MERFISH experiment.
 
     Parameters
@@ -309,7 +303,7 @@ def read_fov(
     if series is not None:
         if isinstance(series, int) or isinstance(series, str):
             series = [series]
-        file_pattern = _determine_fov_format(path, fov, series[0], file_pattern)
+        file_pattern = determine_fov_format(path, fov=fov, series=series[0], file_pattern=file_pattern)
         for s in series:
             img, attr = read_img(
                 path / file_pattern.format(series=s, fov=fov), z_slices=z_slices, z_project=z_project, colors=colors
@@ -320,7 +314,9 @@ def read_fov(
     elif channels is not None:
         if colors is not None:
             channels = channels.query("color in @colors")
-        file_pattern = _determine_fov_format(path, fov, channels["series"].values[0], file_pattern)
+        file_pattern = determine_fov_format(
+            path, fov=fov, series=channels["series"].values[0], file_pattern=file_pattern
+        )
         for s, s_channels in channels.groupby("series", sort=False):
             img, attr = read_img(
                 path / file_pattern.format(series=s, fov=fov),
@@ -349,3 +345,81 @@ def read_fov(
         attrs = attrs[0]
     attrs["colors"] = colors
     return imgs, attrs
+
+
+def read_mosaic(
+    path: str | pathlib.Path,
+    series: str,
+    colors: int | str | list = None,
+    fovs: list = None,
+    file_pattern: str = "{series}/Conv_zscan_{fov}.dax",
+    z_slices: int | list = None,
+    z_project: bool = False,
+    downsample: int | bool = 4,
+    filter: callable = None,
+    filter_args: dict = None,
+) -> tuple[np.ndarray, np.ndarray]:
+    """Read FOV images as a mosaic.
+
+    Parameters
+    ----------
+    path
+        Path to image files.
+    series
+        Name of a series to read
+    colors
+        List of color indices to read.
+    fovs
+        List of field of view numbers to read.
+    file_pattern
+        Naming pattern for image files.
+    z_slices
+        List of z-slice indices to read.
+    z_project
+        If True, z-project the image.
+    downsample
+        Factor to downsample the image by. If False, no downsampling is performed.
+    filter
+        Function to filter the images with.
+    filter_args
+        Arguments to pass to the filter function.
+
+    Returns
+    -------
+    mosaic
+        a numpy array image with all FOVs stitched together.
+    bounds
+        the total bounds in microns (x_min, y_min, x_max, y_max).
+    """
+    # Setup
+    if filter_args is None:
+        filter_args = {}
+    if fovs is None:
+        fovs = list_fovs(path, file_pattern=file_pattern)
+    if isinstance(z_slices, int):
+        z_slices = [z_slices]
+    if colors is None and len(z_slices) > 1:
+        raise ValueError("Must specify a single color when using multiple z slices")
+    if downsample is False:
+        downsample = 1
+    if downsample is True:
+        downsample = 4
+    # Read images
+    imgs = []
+    positions = []
+    for fov in fovs:
+        img, attrs = read_fov(path, series=series, fov=fov, colors=colors, z_slices=z_slices, z_project=z_project)
+        if downsample > 1:
+            if len(img.shape) == 2:
+                img = img[::downsample, ::downsample]
+            elif len(img.shape) == 3:
+                img = img[:, ::downsample, ::downsample]
+        if filter is not None:
+            img = filter(img, **filter_args)
+        imgs.append(img)
+        positions.append(attrs["stage_position"])
+        microns_per_pixel = attrs["micron_per_pixel"] * downsample
+    # Create mosaic
+    print(microns_per_pixel)
+    mosaic, bounds = create_mosaic(imgs, positions, microns_per_pixel)
+    return mosaic, bounds
