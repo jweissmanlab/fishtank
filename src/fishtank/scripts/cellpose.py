@@ -6,7 +6,8 @@ import numpy as np
 import skimage as ski
 
 import fishtank as ft
-from fishtank.utils import parse_dict, parse_index, parse_list, parse_path
+
+from ._utils import parse_dict, parse_index, parse_list, parse_path
 
 
 class FOVLoggerAdapter(logging.LoggerAdapter):  # noqa: D101

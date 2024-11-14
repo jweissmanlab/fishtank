@@ -7,7 +7,7 @@
     <lock_target type="float">1.453</lock_target>
     <notes type="string"/>
     <number_frames type="int">25</number_frames>
-    <stage_position type="custom">400.10,-2494.35</stage_position>
+    <stage_position type="custom">421.50,-2494.35</stage_position>
     <version type="string">40abb02604b3400f75cbcac4b28837128c730366</version>
   </acquisition>
   <camera1 validate="True">

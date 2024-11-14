@@ -60,3 +60,17 @@
     seg.polygon_properties
 
 ```
+
+## Utilities
+
+```{eval-rst}
+.. module:: fishtank.utils
+.. currentmodule:: fishtank
+
+.. autosummary::
+    :toctree: generated
+
+    utils.tile_polygons
+    utils.create_mosaic
+
+```

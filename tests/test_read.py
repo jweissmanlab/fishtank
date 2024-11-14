@@ -6,12 +6,12 @@ import fishtank as ft
 
 @pytest.fixture()
 def xml_path(img_path):
-    return img_path / "H0R1" / "Conv_zscan_01.xml"
+    return img_path / "H0R1" / "Conv_zscan_00.xml"
 
 
 @pytest.fixture()
 def dax_path(img_path):
-    return img_path / "H0R1" / "Conv_zscan_01.dax"
+    return img_path / "H0R1" / "Conv_zscan_00.dax"
 
 
 @pytest.fixture()

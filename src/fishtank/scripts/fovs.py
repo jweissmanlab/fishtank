@@ -1,7 +1,8 @@
 import argparse
 
 import fishtank as ft
-from fishtank.utils import parse_path
+
+from ._utils import parse_path
 
 
 def get_parser():
