@@ -134,6 +134,10 @@ def fix_overlaps(
     logger = logging.getLogger("fix_overlaps")
     logger.setLevel(logging.INFO)
     if z is None:
+        if polygons[cell].nunique() != len(polygons):
+            raise ValueError(
+                "2D polygons must have a unique cell identifier. If your polygons are 3D, please provide a z column."
+            )
         z = "_z"
         polygons[z] = 0
     logger.info("Splitting polygons into edge and interior sets.")

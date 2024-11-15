@@ -17,7 +17,7 @@ from ._utils import parse_path
 
 
 def get_parser():
-    """Get parser for cellpose script"""
+    """Get parser for align_experiments script"""
     parser = argparse.ArgumentParser(add_help=False)
     parser.add_argument("-r", "--ref", type=parse_path, required=True, help="Reference image directory")
     parser.add_argument("-m", "--moving", type=parse_path, required=True, help="Moving image directory")

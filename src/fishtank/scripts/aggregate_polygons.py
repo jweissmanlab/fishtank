@@ -85,7 +85,7 @@ def main(args):
     with mp.Pool(mp.cpu_count()) as pool:
         polygons = list(tqdm(pool.imap_unordered(parallel_func, fovs), total=len(fovs)))
     polygons = pd.concat(polygons)
-    polygons["cell"] = (polygons["fov"] * 1e5 + polygons[args.cell_column]).rank(method="dense").astype(int)
+    polygons["cell"] = (polygons["fov"] * 1e5 + polygons[args.cell_column]).rank(method="dense").astype(int) + 1
     logger.info(f"Loaded {len(polygons[args.cell_column].unique())} polygons.")
     # Fix overlapping polygons
     logger.info("Fixing overlapping polygons.")
@@ -108,4 +108,5 @@ def main(args):
     with warnings.catch_warnings():
         warnings.simplefilter("ignore")  # Ignore CRS warning
         polygons.to_file(args.output, driver="GeoJSON")
+    metadata.drop(columns=["x_offset", "y_offset", "global_z", "z"], errors="ignore", inplace=True)
     metadata.to_csv(str(args.output).replace(".json", "_metadata.csv"), index=False)

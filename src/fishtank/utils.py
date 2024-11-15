@@ -33,7 +33,7 @@ def determine_fov_format(
             return file_pattern
         if os.path.exists(path / file_pattern.replace("{fov}", format).format(fov=fov, series=series)):
             return file_pattern.replace("{fov}", format)
-    raise ValueError(f"Could not find file matching {file_pattern.format(fov=fov,series=series)} in {path}")
+    raise ValueError(f"Could not find file matching {file_pattern.format(series = series,fov = '[fov]')} in {path}")
 
 
 def tile_polygons(
