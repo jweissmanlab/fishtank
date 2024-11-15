@@ -75,6 +75,38 @@ def tile_polygons(
     return polygon_tiles
 
 
+def tile_image(image: np.ndarray, tile_shape: tuple = (1000, 1000)) -> tuple[list[np.ndarray], list]:
+    """Split image into tiles.
+
+    Parameters
+    ----------
+    image
+        a (C,Y,X), (C,Z,Y,X) or (Y,X) image to split into tiles.
+    tile_shape
+        the shape of the tiles to divide the polygons into.
+
+    Returns
+    -------
+    tiles
+        a list of image tiles.
+    positions
+        a list of (x,y) positions for each tile.
+    """
+    tiles = []
+    positions = []
+    for i in range(0, image.shape[-2], tile_shape[0]):
+        for j in range(0, image.shape[-1], tile_shape[1]):
+            if len(image.shape) == 2:
+                tile = image[i : i + tile_shape[0], j : j + tile_shape[1]]
+            elif len(image.shape) == 3:
+                tile = image[:, i : i + tile_shape[0], j : j + tile_shape[1]]
+            elif len(image.shape) == 4:
+                tile = image[:, :, i : i + tile_shape[0], j : j + tile_shape[1]]
+            tiles.append(tile)
+            positions.append((j, i))
+    return tiles, positions
+
+
 def create_mosaic(
     imgs: list[np.ndarray],
     positions: list,

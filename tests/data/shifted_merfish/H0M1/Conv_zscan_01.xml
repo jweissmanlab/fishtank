@@ -1,0 +1,119 @@
+<?xml version="1.0" encoding="ISO-8859-1"?>
+<settings>
+  <acquisition validate="True">
+    <good_lock type="boolean">True</good_lock>
+    <lock_mode type="string">Hardware Z Scan</lock_mode>
+    <lock_sum type="float">85870.0</lock_sum>
+    <lock_target type="float">1.453</lock_target>
+    <notes type="string"/>
+    <number_frames type="int">25</number_frames>
+    <stage_position type="custom">426.50,-2494.35</stage_position>
+    <version type="string">40abb02604b3400f75cbcac4b28837128c730366</version>
+  </acquisition>
+  <camera1 validate="True">
+    <binning type="string">1x1</binning>
+    <default_max type="int">10000</default_max>
+    <default_min type="int">100</default_min>
+    <defect_correct_mode type="string">OFF</defect_correct_mode>
+    <exposure_time type="float">0.100014</exposure_time>
+    <extension type="string"/>
+    <flip_horizontal type="boolean">True</flip_horizontal>
+    <flip_vertical type="boolean">False</flip_vertical>
+    <fps type="float">9.998600195972564</fps>
+    <readout_speed type="int">2</readout_speed>
+    <saved type="boolean">True</saved>
+    <subarray_hpos type="int">0</subarray_hpos>
+    <subarray_hsize type="int">288</subarray_hsize>
+    <subarray_vpos type="int">0</subarray_vpos>
+    <subarray_vsize type="int">288</subarray_vsize>
+    <transpose type="boolean">True</transpose>
+    <trigger_source type="string">INTERNAL</trigger_source>
+    <x_bin type="int">1</x_bin>
+    <x_end type="int">256</x_end>
+    <x_pixels type="int">288</x_pixels>
+    <x_start type="int">1</x_start>
+    <y_bin type="int">1</y_bin>
+    <y_end type="int">256</y_end>
+    <y_pixels type="int">288</y_pixels>
+    <y_start type="int">1</y_start>
+  </camera1>
+  <display00 validate="False">
+    <camera1 validate="True">
+      <center_x type="float">343289104.0</center_x>
+      <center_y type="float">-2111019696.0</center_y>
+      <colortable type="string">ramp_sat.ctbl</colortable>
+      <display_max type="int">6115</display_max>
+      <display_min type="int">100</display_min>
+      <initialized type="boolean">True</initialized>
+      <scale type="int">-2</scale>
+      <sync type="int">0</sync>
+    </camera1>
+    <feed_name type="string">camera1</feed_name>
+  </display00>
+  <film validate="False">
+    <acq_mode type="string">fixed_length</acq_mode>
+    <auto_increment type="boolean">True</auto_increment>
+    <auto_shutters type="boolean">True</auto_shutters>
+    <extension type="string"/>
+    <filename type="string">zscan_748_637_545_477_405_s50_n600_10Hz</filename>
+    <filetype type="string">.dax</filetype>
+    <frames type="int">25</frames>
+    <want_bell type="boolean">True</want_bell>
+  </film>
+  <focuslock validate="True">
+    <calibrate validate="True">
+      <deadtime type="int">20</deadtime>
+      <frames_to_pause type="int">2</frames_to_pause>
+      <range type="float">600.0</range>
+      <step_size type="float">10.0</step_size>
+    </calibrate>
+    <find_sum validate="True">
+      <step_size type="float">0.25</step_size>
+    </find_sum>
+    <hardware_z_scan validate="True">
+      <z_offsets type="string">-15.00,-15.00,-15.00,-15.00,-15.00,-14.40,-14.40,-14.40,-14.40,-14.40,-13.80,-13.80,-13.80,-13.80,-13.80,-13.20,-13.20,-13.20,-13.20,-13.20,-12.60,-12.60,-12.60,-12.60,-12.60</z_offsets>
+    </hardware_z_scan>
+    <jump_size type="float">0.1</jump_size>
+    <locked validate="True">
+      <buffer_length type="int">5</buffer_length>
+      <lock_gain type="float">0.1</lock_gain>
+      <lock_gain_max type="float">0.1</lock_gain_max>
+      <minimum_sum type="float">-1.0</minimum_sum>
+      <offset_threshold type="float">50.0</offset_threshold>
+    </locked>
+    <optimal_mode validate="True">
+      <bracket_step type="float">1000.0</bracket_step>
+      <quality_threshold type="float">0.0</quality_threshold>
+      <scan_hold type="int">10</scan_hold>
+      <scan_step type="float">100.0</scan_step>
+    </optimal_mode>
+    <scan validate="True">
+      <minimum_sum type="float">30000.0</minimum_sum>
+      <offset_threshold type="float">100.0</offset_threshold>
+      <scan_range type="float">10.0</scan_range>
+      <scan_step type="float">0.2</scan_step>
+    </scan>
+  </focuslock>
+  <illumination validate="True">
+    <default_power type="custom">0.200,0.040,0.160,0.000,0.030,0.000,0.004</default_power>
+    <on_off_state type="custom">False,False,False,False,False,False,False</on_off_state>
+    <power_buttons type="custom">[[['Max', 1.0], ['Low', 0.02]], [['Max', 1.0], ['Low', 0.02]], [['Max', 1.0], ['Low', 0.02]], [['Max', 1.0], ['Low', 0.02]], [['Max', 1.0], ['Low', 0.02]], [['Max', 1.0], ['Low', 0.02]], [['Max', 1.0], ['Low', 0.02]]]</power_buttons>
+    <shutters type="string">C:\Softwares\Github\MerScope01\storm_control\hal4000\shutter_748_637_545_477_405_s50.xml</shutters>
+  </illumination>
+  <mosaic validate="False">
+    <flip_horizontal type="boolean">False</flip_horizontal>
+    <flip_vertical type="boolean">True</flip_vertical>
+    <obj1 type="custom">60x,0.107,0.0,0.0</obj1>
+    <obj2 type="custom">20x,0.324,0.0,0.0</obj2>
+    <obj3 type="custom">10x,0.653,0.0,0.0</obj3>
+    <objective type="string">obj1</objective>
+    <transpose type="boolean">True</transpose>
+  </mosaic>
+  <stage validate="True">
+    <large_step_size type="float">25.0</large_step_size>
+    <small_step_size type="float">5.0</small_step_size>
+  </stage>
+  <timing validate="True">
+    <time_base type="string">camera1</time_base>
+  </timing>
+</settings>

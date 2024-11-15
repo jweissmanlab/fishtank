@@ -420,6 +420,5 @@ def read_mosaic(
         positions.append(attrs["stage_position"])
         microns_per_pixel = attrs["micron_per_pixel"] * downsample
     # Create mosaic
-    print(microns_per_pixel)
     mosaic, bounds = create_mosaic(imgs, positions, microns_per_pixel)
     return mosaic, bounds

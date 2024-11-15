@@ -72,6 +72,7 @@
     :toctree: generated
 
     utils.tile_polygons
+    utils.tile_image
     utils.create_mosaic
     utils.determine_fov_format
 
