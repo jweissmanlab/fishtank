@@ -25,6 +25,7 @@ classifiers = [
 dependencies = [
   "cellpose",
   "geopandas",
+  "matplotlib",
   "numpy",
   "pandas",
   "pathlib",
