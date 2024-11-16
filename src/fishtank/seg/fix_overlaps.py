@@ -58,8 +58,15 @@ def _area_3d(polygon):
     return float(np.sum(polygon.geometry.area))
 
 
+def _get_z_mapping(df, z):
+    """Get columns that are constant for each z-slice."""
+    z_columns = [c for c in df.columns if c != z and df.groupby(z)[c].nunique().max() == 1]
+    return df.groupby(z)[z_columns].first().reset_index()
+
+
 def _fix_overlaps(polygons, min_ioa=0.2, cell="cell", z="global_z", fov="fov", tolerance=0.5):
     """Fix overlapping polygons by merging > min_ioa."""
+    z_mapping = _get_z_mapping(polygons, z)
     polygons_2d = polygons.dissolve(cell).reset_index().drop(columns=[z])
     polygons_3d = {i: polygons.loc[polygons[cell] == i, ["geometry", z]] for i in polygons[cell].unique()}
     overlap_graph = _get_overlap_graph(polygons_2d, cell, fov)
@@ -91,6 +98,7 @@ def _fix_overlaps(polygons, min_ioa=0.2, cell="cell", z="global_z", fov="fov", t
     ).drop(columns="drop")
     polygons = polygons_3d.merge(polygons_2d.drop(columns="geometry"), on=cell, how="left")
     polygons = polygons[polygons.area > 1].copy()
+    polygons = polygons.drop(columns=set(z_mapping.columns) - {z}).merge(z_mapping, on=z, how="left")
     return polygons
 
 
@@ -143,7 +151,7 @@ def fix_overlaps(
     logger.info("Splitting polygons into edge and interior sets.")
     edge_polygons, interior_polygons = _get_edge_polygons(polygons, fov=fov, cell=cell, buffer=diameter / 2)
     logger.info("Splitting edge polygons into tiles.")
-    edge_tiles = tile_polygons(edge_polygons, tile_shape=tile_shape, buffer=diameter, cell=cell)
+    edge_tiles, _ = tile_polygons(edge_polygons, tile_shape=tile_shape, buffer=diameter, cell=cell)
     logger.info("Fixing overlapping polygons in parallel.")
     parallel_func = partial(_fix_overlaps, min_ioa=min_ioa, cell=cell, z=z, fov=fov, tolerance=tolerance)
     with mp.Pool(mp.cpu_count()) as pool:

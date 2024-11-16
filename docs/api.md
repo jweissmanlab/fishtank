@@ -59,6 +59,7 @@
     seg.polygons_to_masks
     seg.fix_overlaps
     seg.polygon_properties
+    seg.assign_spots
 
 ```
 

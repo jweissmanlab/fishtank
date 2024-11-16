@@ -89,3 +89,13 @@ def overlapping_polygons(polygons_path) -> gpd.GeoDataFrame:
 @pytest.fixture(scope="session")
 def masks() -> np.ndarray:
     yield np.load("tests/data/masks/masks_0.npy")
+
+
+@pytest.fixture(scope="session")
+def spots_path() -> Path:
+    yield Path("tests/data/spots")
+
+
+@pytest.fixture(scope="session")
+def spots(spots_path) -> pd.DataFrame:
+    yield pd.read_csv(spots_path / "spots_0.csv")
