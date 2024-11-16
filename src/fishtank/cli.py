@@ -1,6 +1,6 @@
 import argparse
 
-from fishtank.scripts import aggregate_polygons, align_experiments, cellpose, fovs
+from fishtank.scripts import aggregate_polygons, align_experiments, assign_spots, cellpose, fovs
 
 
 def main():
@@ -15,6 +15,9 @@ def main():
     )
     subparsers.add_parser(
         "align-experiments", parents=[align_experiments.get_parser()], help="Align experiments using optical flow"
+    )
+    subparsers.add_parser(
+        "assign-spots", parents=[assign_spots.get_parser()], help="Assign spots to the nearest polygon"
     )
     subparsers.add_parser("fovs", parents=[fovs.get_parser()], help="List FOVs in a directory")
 

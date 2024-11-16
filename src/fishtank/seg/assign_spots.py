@@ -94,12 +94,12 @@ def _tile_points(points, bounds):
 def assign_spots(
     spots: pd.DataFrame,
     polygons: gpd.GeoDataFrame,
+    max_dist: float | int = 5,
     cell: str = "cell",
     x: str = "global_x",
     y: str = "global_y",
     z: str | None = None,
     polygons_z: str | None = None,
-    max_dist: float | int = 5,
 ) -> pd.DataFrame:
     """Assigns spots to the nearest polygon
 
@@ -109,8 +109,8 @@ def assign_spots(
         a DataFrame of spot coordinates. Can be 2D or 3D.
     polygons
         a GeoDataFrame of cell outlines. Can be 2D or 3D.
-    min_ioa
-        the minimum intersection over area to merge overlapping polygons.
+    max_dist
+        the maximum distance to search for the nearest polygon.
     cell
         the name of the cell column in the polygons.
     x
@@ -121,8 +121,6 @@ def assign_spots(
         the name of the z column in the spots. If None, the polygons are assumed to be 2D.
     polygons_z
         the name of the z column in the polygons. If None, the spots z values will be used.
-    max_dist
-        the maximum distance to search for the nearest polygon.
 
     Returns
     -------
