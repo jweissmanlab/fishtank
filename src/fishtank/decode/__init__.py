@@ -1,1 +1,1 @@
-from .get_intensities import get_intensities
+from .spot_intensities import spot_intensities

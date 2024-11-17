@@ -23,7 +23,7 @@ def _spot_intensity(img, x, y, z, radius, mask, agg=np.max):
     return intensity
 
 
-def get_intensities(
+def spot_intensities(
     img: np.ndarray, x: np.ndarray, y: np.ndarray, z: np.ndarray | None = None, radius: int = 5, agg: Callable = np.max
 ) -> np.ndarray:
     """Correct image illumination.

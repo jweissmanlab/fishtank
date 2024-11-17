@@ -1,6 +1,6 @@
 import argparse
 
-from fishtank.scripts import aggregate_polygons, align_experiments, assign_spots, cellpose, fovs
+from fishtank.scripts import aggregate_polygons, align_experiments, assign_spots, cellpose, detect_spots, fovs
 
 
 def main():
@@ -18,6 +18,11 @@ def main():
     )
     subparsers.add_parser(
         "assign-spots", parents=[assign_spots.get_parser()], help="Assign spots to the nearest polygon"
+    )
+    subparsers.add_parser(
+        "detect-spots",
+        parents=[detect_spots.get_parser()],
+        help="Detect spots in an image and quantify their intensity",
     )
     subparsers.add_parser("fovs", parents=[fovs.get_parser()], help="List FOVs in a directory")
 

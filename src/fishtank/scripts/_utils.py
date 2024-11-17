@@ -1,3 +1,4 @@
+import ast
 from pathlib import Path
 
 
@@ -5,7 +6,7 @@ def parse_dict(arg: str) -> dict:
     """Parse dictionary input in the form of key1=val1,key2=val2"""
     if arg is None:
         return {}
-    return dict(item.split("=") for item in arg.split(","))
+    return {key: ast.literal_eval(value) for key, value in (item.split("=") for item in arg.split(","))}
 
 
 def parse_list(arg: str) -> list:

@@ -55,7 +55,7 @@
 .. autosummary::
     :toctree: generated
 
-    decode.get_intensities
+    decode.spot_intensities
 
 ```
 
