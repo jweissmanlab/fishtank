@@ -11,7 +11,7 @@ def illumination(
     Parameters
     ----------
     img
-        A (X,Y), (C,X,Y) or (C,Z,X,Y) image.
+        A (Y,X), (C,Y,X) or (C,Z,Y,X) image.
     colors
         A list of channel colors. Must be the same length as the number of channels in the image.
     corr_path

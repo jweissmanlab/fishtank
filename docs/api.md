@@ -46,6 +46,19 @@
 
 ```
 
+## Decode
+
+```{eval-rst}
+.. module:: fishtank.decode
+.. currentmodule:: fishtank
+
+.. autosummary::
+    :toctree: generated
+
+    decode.get_intensities
+
+```
+
 ## Segmentation
 
 ```{eval-rst}
