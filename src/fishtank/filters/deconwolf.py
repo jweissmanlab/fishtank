@@ -68,7 +68,7 @@ def deconwolf(
     # Run deconwolf on each channel
     with tempfile.TemporaryDirectory() as tmp_dir:
         gpu = "--gpu" if gpu else ""
-        tile = "--tilesize {tilesize}" if tilesize else ""
+        tile = f"--tilesize {tilesize}" if tilesize else ""
         for i, color in enumerate(colors):
             color_psf = psf_path / f"{color}_z{int(z_step*1000)}_psf.tiff"
             if not color_psf.exists():

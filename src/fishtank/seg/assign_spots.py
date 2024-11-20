@@ -82,10 +82,11 @@ def _assign_nearest(tile, z="z", max_dist=5):
 
 def _tile_points(points, bounds):
     """Split points into tiles based on bounds."""
+    n_tiles = len(bounds)
     bounds = gpd.GeoDataFrame(geometry=bounds)
     points = gpd.sjoin(points, bounds, how="left").query("index_right.notna()")
     tiles = []
-    for tile in sorted(points["index_right"].unique()):  # noqa: B007
+    for tile in range(n_tiles):  # noqa: B007
         tiles.append(points.query("index_right == @tile").drop(columns="index_right").copy())
     points.drop(columns="index_right", inplace=True)
     return tiles

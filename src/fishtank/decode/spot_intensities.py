@@ -15,6 +15,8 @@ def _spot_intensity(img, x, y, z, radius, mask, agg=np.max):
     y_min, y_max = max(0, y - radius), min(img.shape[-2], y + radius + 1)
     x_min, x_max = max(0, x - radius), min(img.shape[-1], x + radius + 1)
     if y_max - y_min != mask.shape[0] or x_max - x_min != mask.shape[1]:
+        if y > img.shape[-2] or y < 0 or x > img.shape[-1] or x < 0:
+            return np.ones(img.shape[0]) * np.nan
         mask = _circle_mask(x - x_min, y - y_min, radius, (y_max - y_min, x_max - x_min))
     if z is None:
         intensity = agg(img[:, y_min:y_max, x_min:x_max][:, mask], axis=-1)
@@ -26,7 +28,7 @@ def _spot_intensity(img, x, y, z, radius, mask, agg=np.max):
 def spot_intensities(
     img: np.ndarray, x: np.ndarray, y: np.ndarray, z: np.ndarray | None = None, radius: int = 5, agg: Callable = np.max
 ) -> np.ndarray:
-    """Correct image illumination.
+    """Get spot intensities.
 
     Parameters
     ----------
@@ -59,7 +61,7 @@ def spot_intensities(
             raise ValueError("z must be None for images with 2 dimensions")
         elif img.ndim == 3:
             img = img[np.newaxis, ...]
-    intensities = np.zeros((len(x), img.shape[0]), dtype=img.dtype)
+    intensities = np.zeros((len(x), img.shape[0]))
     circle_mask = _circle_mask(radius, radius, radius, (2 * radius + 1, 2 * radius + 1))
     # Get intensities
     for i in range(len(x)):
@@ -67,4 +69,4 @@ def spot_intensities(
             intensities[i] = _spot_intensity(img, x[i], y[i], None, radius, circle_mask, agg)
         else:
             intensities[i] = _spot_intensity(img, x[i], y[i], z[i], radius, circle_mask, agg)
-    return intensities.astype(img.dtype)
+    return intensities

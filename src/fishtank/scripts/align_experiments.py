@@ -165,3 +165,4 @@ def main(args):
     with warnings.catch_warnings():
         warnings.simplefilter("ignore")  # ignore crs warning
         alignment.to_file(args.output, driver="GeoJSON")
+    logger.info("Done")

@@ -1,0 +1,3 @@
+name,method,file
+barcode,expectation_maximization,./tests/data/decoding/codebook.csv
+state,logistic_regression,./tests/data/decoding/weights.csv

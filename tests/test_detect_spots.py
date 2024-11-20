@@ -5,7 +5,6 @@ import pytest
 import fishtank as ft
 
 
-@pytest.mark.slow
 def test_detect_spots_3d(caplog):
     parser = ft.scripts.detect_spots.get_parser()
     args = parser.parse_args(
@@ -28,8 +27,8 @@ def test_detect_spots_3d(caplog):
     )
     with caplog.at_level(logging.INFO):
         ft.scripts.detect_spots.main(args)
-    assert "Detecting spots with threshold 2310.0" in caplog.text
-    assert "Detected 46 spots" in caplog.text
+    assert "Detecting spots with threshold 1000" in caplog.text
+    assert "Detected 103 spots" in caplog.text
     assert "Series drift: [0 0]" in caplog.text
     assert "Saving results in tests/output/spots" in caplog.text
 

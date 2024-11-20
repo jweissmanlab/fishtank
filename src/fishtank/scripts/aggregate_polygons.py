@@ -103,10 +103,11 @@ def main(args):
             metadata = metadata[metadata["area"] > args.min_size].copy()
     logger.info(f"{len(metadata)} polygons after removing polygons smaller than {args.min_size}.")
     # Save polygons
-    logger.info("Saving polygons.")
+    logger.info(f"Saving polygons to {args.output}")
     polygons = polygons.drop(columns=["x_offset", "y_offset"]).query("cell in @metadata.cell")
     with warnings.catch_warnings():
         warnings.simplefilter("ignore")  # Ignore CRS warning
         polygons.to_file(args.output, driver="GeoJSON")
     metadata.drop(columns=["x_offset", "y_offset", "global_z", "z"], errors="ignore", inplace=True)
     metadata.to_csv(str(args.output).replace(".json", "_metadata.csv"), index=False)
+    logger.info("Done")

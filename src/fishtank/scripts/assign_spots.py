@@ -64,3 +64,4 @@ def main(args):
     # Save
     logger.info("Saving spot assignments.")
     spots.to_csv(args.output, index=False)
+    logger.info("Done")

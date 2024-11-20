@@ -29,7 +29,7 @@ def test_aggregate_polygons_3d(caplog):
     assert "Loaded 33 polygons." in caplog.text
     assert "27 polygons after fixing overlaps." in caplog.text
     assert "17 polygons after removing polygons smaller than 2000.0." in caplog.text
-    assert "Saving polygons." in caplog.text
+    assert "Saving polygons to tests/output/polygons_3d.json" in caplog.text
 
 
 @pytest.mark.slow
@@ -54,7 +54,7 @@ def test_aggregate_polygons_2d(caplog):
     assert "Loaded 20 polygons." in caplog.text
     assert "16 polygons after fixing overlaps." in caplog.text
     assert "14 polygons after removing polygons smaller than 500.0." in caplog.text
-    assert "Saving polygons." in caplog.text
+    assert "Saving polygons to tests/output/polygons_2d.json" in caplog.text
 
 
 if __name__ == "__main__":

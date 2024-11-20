@@ -1,1 +1,3 @@
+from .expectation_maximization import expectation_maximization
+from .logistic_regression import logistic_regression
 from .spot_intensities import spot_intensities

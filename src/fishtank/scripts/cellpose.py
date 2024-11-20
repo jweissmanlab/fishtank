@@ -151,3 +151,4 @@ def main(args):
     with warnings.catch_warnings():
         warnings.simplefilter("ignore")
         polygons.to_file(args.output / f"polygons_{args.fov}.json", driver="GeoJSON")
+    logger.info("Done")

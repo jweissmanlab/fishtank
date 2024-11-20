@@ -24,6 +24,7 @@ classifiers = [
 ]
 dependencies = [
   "cellpose",
+  "dask",
   "geopandas",
   "matplotlib",
   "numpy",
@@ -32,6 +33,7 @@ dependencies = [
   "rasterio",
   "scikit-image",
   "scikit-learn",
+  "seaborn",
   # for debug logging (referenced from the issue template)
   "session-info",
 ]

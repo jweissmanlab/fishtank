@@ -29,6 +29,7 @@
     :toctree: generated
 
     correct.illumination
+    correct.color_normalization
 
 ```
 
@@ -56,6 +57,8 @@
     :toctree: generated
 
     decode.spot_intensities
+    decode.expectation_maximization
+    decode.logistic_regression
 
 ```
 

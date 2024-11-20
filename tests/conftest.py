@@ -99,3 +99,18 @@ def spots_path() -> Path:
 @pytest.fixture(scope="session")
 def spots(spots_path) -> pd.DataFrame:
     yield pd.read_csv(spots_path / "spots_0.csv")
+
+
+@pytest.fixture(scope="session")
+def spot_channels(spots_path) -> pd.DataFrame:
+    yield ft.io.read_color_usage(spots_path / "color_usage.csv")
+
+
+@pytest.fixture(scope="session")
+def codebook() -> pd.DataFrame:
+    yield pd.read_csv("tests/data/decoding/codebook.csv", index_col=0)
+
+
+@pytest.fixture(scope="session")
+def weights() -> pd.DataFrame:
+    yield pd.read_csv("tests/data/decoding/weights.csv", index_col=0)

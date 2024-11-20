@@ -1,5 +1,6 @@
 import argparse
 import logging
+from functools import partial
 
 import numpy as np
 import pandas as pd
@@ -36,7 +37,7 @@ def get_parser():
     parser.add_argument("--spot_min_sigma", type=int, default=2, help="Minimum sigma for spot detection")
     parser.add_argument("--spot_max_sigma", type=int, default=20, help="Maximum sigma for spot detection")
     parser.add_argument(
-        "--spot_threshold_quantile", type=float, default=0.95, help="Quantile for spot intensity threshold"
+        "--spot_threshold", type=int, default=1000, help="Minimum intensity threshold for spot detection"
     )
     parser.add_argument("--spot_radius", type=int, default=5, help="Spot radius for intensity quantification")
     parser.add_argument(
@@ -60,9 +61,9 @@ def _get_filter(name, filter_args):
     if name is None:
         return lambda x: x
     elif hasattr(ft.filters, name):
-        return lambda x: getattr(ft.filters, name)(x, channel_axis=0, **filter_args)
+        return partial(getattr(ft.filters, name), **filter_args)
     elif hasattr(ski.filters, name):
-        return lambda x: getattr(ski.filters, name)(x, channel_axis=0, **filter_args)
+        return partial(getattr(ski.filters, name) ** filter_args)
     else:
         raise ValueError(f"Filter {name} not found in fishtank.filters or skimage.filters")
 
@@ -89,13 +90,18 @@ def main(args):
     if common_img.ndim > 3:
         common_img = common_img.max(axis=0)
     logger.info(f"Applying {args.filter} filter")
-    common_img = filter(common_img)
-    threshold = np.quantile(common_img, args.spot_threshold_quantile)
+    common_img = ski.util.apply_parallel(
+        filter, common_img, chunks=(1, common_img.shape[1], common_img.shape[2]), dtype=common_img.dtype, channel_axis=0
+    )
     # Detect spots
-    logger.info(f"Detecting spots with threshold {threshold}")
+    logger.info(f"Detecting spots with threshold {args.spot_threshold}")
     common_img = np.pad(common_img, ((1, 1), (0, 0), (0, 0)), mode="constant")  # pad z axis
     positions = ski.feature.blob_log(
-        common_img.astype(float), min_sigma=args.spot_min_sigma, max_sigma=args.spot_max_sigma, threshold=threshold
+        common_img.astype(float),
+        min_sigma=args.spot_min_sigma,
+        max_sigma=args.spot_max_sigma,
+        threshold=args.spot_threshold,
+        num_sigma=5,
     )
     logger.info(f"Detected {positions.shape[0]} spots")
     spots = pd.DataFrame(positions[:, :3].astype(int), columns=["z", "y", "x"])
@@ -106,7 +112,7 @@ def main(args):
     filtered_channels = channels.query("bit not in @args.exclude_bits").copy()
     for series, series_channels in filtered_channels.groupby("series", sort=False):
         # Read series image
-        logger.info(f"Processing series {series}")
+        logger.info(f"Loading series {series}")
         img, _ = ft.io.read_fov(args.input, args.fov, channels=series_channels, file_pattern=args.file_pattern)
         filtered_channels.loc[filtered_channels.series == series, "max_intensity"] = img.max(axis=(1, 2, 3))
         # Get the drift
@@ -122,22 +128,28 @@ def main(args):
         # Filter the image
         logger.info(f"Applying {args.filter} filter")
         for i in range(img.shape[0]):
-            img[i] = filter(img[i])
+            img[i] = ski.util.apply_parallel(
+                filter, img[i], chunks=(1, img.shape[-2], img.shape[-1]), dtype=img.dtype, channel_axis=0
+            )
         # Get spot intensities
-        logger.info("Quantifying spot intensities")
+        logger.info("Getting spot intensities")
         spots[series_channels.bit] = ft.decode.spot_intensities(
             img, spots.x - drift[1], spots.y - drift[0], spots.z, args.spot_radius
         )
-    # Get global coordinates
+    # Clean up
+    spots = spots.dropna()
     spots["global_x"] = spots["x"] * attr["micron_per_pixel"] + attr["stage_position"][0]
     spots["global_y"] = spots["y"] * attr["micron_per_pixel"] + attr["stage_position"][1]
     spots["global_z"] = spots["z"].apply(lambda x: attr["z_offsets"][x])
-    spots["spot"] = spots.index.values
+    spots["spot"] = spots.reset_index().index.values
+    spots["fov"] = args.fov
+    col_order = ["fov", "spot", "x", "y", "z", "global_x", "global_y", "global_z"]
+    col_order = col_order + [x for x in spots.columns if x not in col_order]
+    spots = spots[col_order]
+    filtered_channels["fov"] = args.fov
     # Save results
     logger.info(f"Saving results in {args.output}")
     args.output.mkdir(parents=True, exist_ok=True)
-    col_order = ["spot", "x", "y", "z", "global_x", "global_y", "global_z"]
-    col_order = col_order + [x for x in spots.columns if x not in col_order]
-    spots = spots[col_order]
     spots.to_csv(args.output / f"spots_{args.fov}.csv", index=False)
     filtered_channels.to_csv(args.output / f"channels_{args.fov}.csv", index=False)
+    logger.info("Done")
