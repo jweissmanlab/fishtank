@@ -87,6 +87,7 @@ def main(args):
     reg_img = ref_img[ref_channels.bit == args.reg_bit].max(axis=(0, 1))
     # Get common image
     common_img = ref_img[ref_channels.bit.isin(args.common_bits)].squeeze()
+    del ref_img
     if common_img.ndim > 3:
         common_img = common_img.max(axis=0)
     logger.info(f"Applying {args.filter} filter")
@@ -101,7 +102,7 @@ def main(args):
         min_sigma=args.spot_min_sigma,
         max_sigma=args.spot_max_sigma,
         threshold=args.spot_threshold,
-        num_sigma=5,
+        num_sigma=4,
     )
     logger.info(f"Detected {positions.shape[0]} spots")
     spots = pd.DataFrame(positions[:, :3].astype(int), columns=["z", "y", "x"])

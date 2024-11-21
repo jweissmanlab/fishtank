@@ -114,8 +114,10 @@ def main(args):
         moving_mosaic, in_range=(0, np.percentile(moving_mosaic, 98)), out_range=(0, 1)
     )
     # Combined mosaic
-    ref_px = (ref_bounds / ref_resolution).astype(int)
-    moving_px = (moving_bounds / moving_resolution).astype(int)
+    moving_px = (moving_bounds[[0, 1, 0, 1]] / moving_resolution).astype(int)
+    moving_px += np.array([0, 0, moving_mosaic.shape[1], moving_mosaic.shape[0]])
+    ref_px = (ref_bounds[[0, 1, 0, 1]] / ref_resolution).astype(int)
+    ref_px += np.array([0, 0, ref_mosaic.shape[1], ref_mosaic.shape[0]])
     combined_mosaic, combined_px = _combined_mosaic(ref_mosaic, moving_mosaic, ref_px, moving_px)
     # Coarse alignment
     logger.info("Performing coarse alignment with phase cross correlation.")
@@ -155,8 +157,8 @@ def main(args):
         alignment.append(
             {
                 "geometry": geometry,
-                "x_shift": tile_fine[1] + coarse_shift[1],
-                "y_offset": tile_fine[0] + coarse_shift[0],
+                "x_shift": (coarse_shift[1] - tile_fine[1]) * moving_resolution,
+                "y_shift": (coarse_shift[0] - tile_fine[0]) * moving_resolution,
             }
         )
     alignment = gpd.GeoDataFrame(alignment, geometry="geometry", crs=None)

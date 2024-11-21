@@ -31,6 +31,9 @@ def get_parser():
         help="Column containing z-slice in polygons. Defaults to z_column",
     )
     parser.add_argument("--cell_fill", type=int, default=0, help="Fill value for unassigned cells")
+    parser.add_argument(
+        "--alignment", type=parse_path, default=None, help="File used to align spots space to polygons space"
+    )
     parser.set_defaults(func=main)
     return parser
 
@@ -45,7 +48,13 @@ def main(args):
     spots = pd.read_csv(args.input)
     logger.info("Loading polygons.")
     polygons = gpd.read_file(args.polygons)
-    polygons.set_crs(None, inplace=True, allow_override=True)
+    polygons = polygons.set_crs(None, allow_override=True)
+    # Align spots
+    if args.alignment is not None:
+        logger.info("Adjusting spot coordinates based on alignment.")
+        alignment = gpd.read_file(args.alignment)
+        alignment = alignment.set_crs(None, allow_override=True)
+        spots = ft.correct.spot_alignment(spots, alignment)
     # Assign spots
     logger.info("Assigning spots to polygons.")
     spots = ft.seg.assign_spots(

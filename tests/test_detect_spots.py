@@ -28,7 +28,7 @@ def test_detect_spots_3d(caplog):
     with caplog.at_level(logging.INFO):
         ft.scripts.detect_spots.main(args)
     assert "Detecting spots with threshold 1000" in caplog.text
-    assert "Detected 103 spots" in caplog.text
+    assert "Detected 100 spots" in caplog.text
     assert "Series drift: [0 0]" in caplog.text
     assert "Saving results in tests/output/spots" in caplog.text
 

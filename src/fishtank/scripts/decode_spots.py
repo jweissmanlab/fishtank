@@ -27,6 +27,9 @@ def get_parser():
     )
     parser.add_argument("--min_snr", type=float, default=4, help="Minimum signal-to-noise for bits in the codebook")
     parser.add_argument("--normalize_colors", type=bool, default=True, help="Normalize intensities by color")
+    parser.add_argument(
+        "--filter_output", type=bool, default=True, help="Exclude spots with distance > max_dist from output"
+    )
     parser.set_defaults(func=main)
     return parser
 
@@ -87,6 +90,8 @@ def main(args):
         _save_decoding_plot(args.output, name)
         logger.info(f"Bit performance: \n{bit_performance}")
         spots[[name, f"{name}_dist", f"{name}_intensity", f"{name}_snr"]] = decoded
+        if args.filter_output:
+            spots = spots.query(f"{name}_dist <= {args.max_dist}").copy()
     # LR decoding
     for name, weights in lr_weights.items():
         logger.info(f"Using logistic regression to decode {name}")
