@@ -46,6 +46,7 @@ def main(args):
     logger = logging.getLogger("decode_spots")
     logger.info(f"fishtank version: {ft.__version__}")
     # Load strategy
+    logger.info(f"Loading decoding strategy from {args.strategy}")
     strategies = pd.read_csv(args.strategy)
     em_codebooks = {}
     lr_weights = {}
@@ -55,6 +56,11 @@ def main(args):
         file = pd.read_csv(strategy["file"], index_col=0, keep_default_na=False)
         decoding_bits.update(set(file.columns.values))
         if strategy["method"] == "expectation_maximization":
+            whitelist = strategy.get("whitelist", None)
+            if whitelist is not None:
+                logger.info(f"Using whitelist for {strategy['name']}")
+                whitelist = pd.read_csv(whitelist, sep="\t", header=None)[0].values
+                file = file.loc[whitelist, :].copy()
             em_codebooks[strategy["name"]] = file
         elif strategy["method"] == "logistic_regression":
             lr_weights[strategy["name"]] = file

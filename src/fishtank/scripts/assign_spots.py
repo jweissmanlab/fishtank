@@ -19,6 +19,7 @@ def get_parser():
         "--max_dist", type=float, default=0, help="Maximum distance from polygon edge for spot assignment"
     )
     parser.add_argument("--cell_column", type=str, default="cell", help="Column containing cell ID in polygons")
+    parser.add_argument("--subset", type=parse_path, default=None, help="Set of polygons to assign spots to")
     parser.add_argument("--x_column", type=str, default="global_x", help="Column containing x-coordinate in spots")
     parser.add_argument("--y_column", type=str, default="global_y", help="Column containing y-coordinate in spots")
     parser.add_argument(
@@ -34,6 +35,7 @@ def get_parser():
     parser.add_argument(
         "--alignment", type=parse_path, default=None, help="File used to align spots space to polygons space"
     )
+    parser.add_argument("--map_z", type=bool, default=False, help="Map spot z values to polygon z values")
     parser.set_defaults(func=main)
     return parser
 
@@ -43,12 +45,25 @@ def main(args):
     # Setup
     logger = logging.getLogger("assign_spots")
     logger.info(f"fishtank version: {ft.__version__}")
+    if args.polygons_z_column is None:
+        args.polygons_z_column = args.z_column
     # Load data
     logger.info("Loading spots.")
-    spots = pd.read_csv(args.input)
+    spots = pd.read_csv(args.input, keep_default_na=False)
     logger.info("Loading polygons.")
     polygons = gpd.read_file(args.polygons)
     polygons = polygons.set_crs(None, allow_override=True)
+    # Subset cells
+    if args.subset is not None:
+        logger.info("Subsetting polygons.")
+        subset = pd.read_csv(args.subset, sep="\t", header=None)[0].values  # noqa: F841
+        polygons = polygons.query(f"{args.cell_column} in @subset").copy()
+    # Map z values
+    if args.map_z:
+        polygon_z_slices = polygons[args.polygons_z_column].unique()
+        spot_z_slices = spots[args.z_column].unique()
+        z_map = {spot_z_slices[i]: polygon_z_slices[i] for i in range(len(spot_z_slices))}
+        spots[args.z_column] = spots[args.z_column].map(z_map)
     # Align spots
     if args.alignment is not None:
         logger.info("Adjusting spot coordinates based on alignment.")

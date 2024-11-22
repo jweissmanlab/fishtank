@@ -111,15 +111,26 @@ def main(args):
     # Intensity quantification
     logger.info("Quantifying spot intensities")
     filtered_channels = channels.query("bit not in @args.exclude_bits").copy()
+    current_drift = np.zeros(2, dtype=int)
     for series, series_channels in filtered_channels.groupby("series", sort=False):
         # Read series image
         logger.info(f"Loading series {series}")
         img, _ = ft.io.read_fov(args.input, args.fov, channels=series_channels, file_pattern=args.file_pattern)
-        filtered_channels.loc[filtered_channels.series == series, "max_intensity"] = img.max(axis=(1, 2, 3))
+        channel_max = img.max(axis=(1, 2, 3))
+        filtered_channels.loc[filtered_channels.series == series, "max_intensity"] = channel_max
         # Get the drift
         drift = ski.registration.phase_cross_correlation(
             reg_img, img[series_channels.bit == args.reg_bit].max(axis=(0, 1))
         )[0].astype(int)
+        if np.sum(np.abs(drift - current_drift)) > 100:
+            logger.warning(f"Large drift detected: {drift}. Using previous drift: {current_drift}")
+            drift = current_drift
+        if channel_max[series_channels.bit == args.reg_bit] < 1000:
+            logger.warning(
+                f"Low intensity for registration channel: {channel_max[series_channels.bit == args.reg_bit]}. Using previous drift: {current_drift}"
+            )
+            drift = current_drift
+        current_drift = drift
         logger.info(f"Series drift: {drift}")
         filtered_channels.loc[filtered_channels.series == series, "x_drift"] = drift[1]
         filtered_channels.loc[filtered_channels.series == series, "y_drift"] = drift[0]
@@ -138,7 +149,7 @@ def main(args):
             img, spots.x - drift[1], spots.y - drift[0], spots.z, args.spot_radius
         )
     # Clean up
-    spots = spots.dropna()
+    spots = spots.dropna().copy()
     spots["global_x"] = spots["x"] * attr["micron_per_pixel"] + attr["stage_position"][0]
     spots["global_y"] = spots["y"] * attr["micron_per_pixel"] + attr["stage_position"][1]
     spots["global_z"] = spots["z"].apply(lambda x: attr["z_offsets"][x])

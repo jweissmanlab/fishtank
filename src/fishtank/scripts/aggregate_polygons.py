@@ -33,6 +33,7 @@ def get_parser():
     parser.add_argument("--y_offset_column", type=str, default="y_offset", help="Column containing y-offset")
     parser.add_argument("--scale_factor", type=float, default=0.107, help="Factor for converting pixels to microns")
     parser.add_argument("--tolerance", type=float, default=0.5, help="Tolerance from polygon simplification (microns)")
+    parser.add_argument("--save_union", type=bool, default=False, help="Save polygons flattened (unioned) to 2D")
     parser.set_defaults(func=main)
     return parser
 
@@ -110,4 +111,14 @@ def main(args):
         polygons.to_file(args.output, driver="GeoJSON")
     metadata.drop(columns=["x_offset", "y_offset", "global_z", "z"], errors="ignore", inplace=True)
     metadata.to_csv(str(args.output).replace(".json", "_metadata.csv"), index=False)
+    # Save unioned polygons
+    if args.save_union:
+        union_path = str(args.output).replace(".json", "_union.json")
+        logger.info(f"Saving unioned polygons to {union_path}")
+        polygons_union = polygons.dissolve(by="cell").reset_index()[["cell", "geometry"]]
+        polygons_union.geometry = polygons_union.geometry.buffer(-1.5).buffer(2)
+        polygons_union.geometry = polygons_union.simplify(0.5)
+        with warnings.catch_warnings():
+            warnings.simplefilter("ignore")  # Ignore CRS warning
+            polygons_union.to_file(union_path, driver="GeoJSON")
     logger.info("Done")

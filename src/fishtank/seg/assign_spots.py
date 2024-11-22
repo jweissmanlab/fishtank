@@ -66,7 +66,7 @@ def _assign_nearest(tile, z="z", max_dist=5):
                     distance_col="dist",
                     lsuffix="point",
                     rsuffix="polygon",
-                    max_distance=max_dist,
+                    max_distance=max_dist + 1e-6,
                 )
                 # Remove duplicate points and calculate 3D distance
                 nearest = nearest[~nearest.index.duplicated(keep="first")]

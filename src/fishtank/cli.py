@@ -3,6 +3,7 @@ import argparse
 from fishtank.scripts import (
     aggregate_polygons,
     align_experiments,
+    assign_proseg,
     assign_spots,
     cellpose,
     decode_spots,
@@ -33,6 +34,11 @@ def main():
         "decode-spots",
         parents=[decode_spots.get_parser()],
         help="Decode spots using a specified strategy",
+    )
+    subparsers.add_parser(
+        "assign-proseg",
+        parents=[assign_proseg.get_parser()],
+        help="Assign additional transcripts to polygons using ProSeg",
     )
     subparsers.add_parser(
         "assign-spots", parents=[assign_spots.get_parser()], help="Assign spots to the nearest polygon"
