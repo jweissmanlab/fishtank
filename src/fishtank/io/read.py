@@ -191,6 +191,7 @@ def read_img(
         if isinstance(z_slices, int):
             z_slices = [z_slices]
         z_slices = np.array(z_slices)
+        attrs["z_offsets"] = np.array(attrs["z_offsets"])[z_slices].astype(float).tolist()
     # Process color selection
     if colors is not None:
         if color_order is None:

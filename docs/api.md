@@ -19,6 +19,18 @@
 
 ```
 
+## Plotting
+
+```{eval-rst}
+.. module:: fishtank.pl
+.. currentmodule:: fishtank
+
+.. autosummary::
+    :toctree: generated
+
+    pl.imshow
+```
+
 ## Correction
 
 ```{eval-rst}

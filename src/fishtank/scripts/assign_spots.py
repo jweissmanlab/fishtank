@@ -60,8 +60,8 @@ def main(args):
         polygons = polygons.query(f"{args.cell_column} in @subset").copy()
     # Map z values
     if args.map_z:
-        polygon_z_slices = polygons[args.polygons_z_column].unique()
-        spot_z_slices = spots[args.z_column].unique()
+        polygon_z_slices = sorted(polygons[args.polygons_z_column].unique())
+        spot_z_slices = sorted(spots[args.z_column].unique())
         z_map = {spot_z_slices[i]: polygon_z_slices[i] for i in range(len(spot_z_slices))}
         spots[args.z_column] = spots[args.z_column].map(z_map)
     # Align spots
