@@ -132,7 +132,7 @@ def main(args):
         polygons["z"] = args.z_slices[0]
     elif args.z_slices is not None:
         polygons["z"] = np.array(args.z_slices)[polygons["z"].values]
-    z_mapping = {z: attrs["z_offsets"][i] for i, z in enumerate(polygons["z"].unique())}
+    z_mapping = {z: attrs["z_offsets"][i] for i, z in enumerate(sorted(polygons["z"].unique()))}
     polygons["global_z"] = polygons["z"].map(z_mapping)
     # Filter small cells
     logger.info(f"Filtering out small cells with size < {args.min_size}")
