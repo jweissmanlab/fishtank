@@ -66,8 +66,9 @@ def test_read_img(dax_path):
     img, attrs = ft.io.read_img(dax_path)
     assert img.shape == (5, 5, 288, 288)
     assert img.dtype == "uint16"
-    img, attrs = ft.io.read_img(dax_path, z_slices=np.array([0, 1, 2]))
-    assert img.shape == (5, 3, 288, 288)
+    img, attrs = ft.io.read_img(dax_path, z_slices=np.array([0, 2]))
+    assert img.shape == (5, 2, 288, 288)
+    assert attrs["z_offsets"] == [-15.0, -13.8]
     img, attrs = ft.io.read_img(dax_path, colors=[637, 545])
     assert img.shape == (2, 5, 288, 288)
     img, attrs = ft.io.read_img(dax_path, z_slices=1, colors=[637, 545])

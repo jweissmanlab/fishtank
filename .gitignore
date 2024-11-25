@@ -25,6 +25,7 @@ __pycache__/
 
 # notebooks
 /dev/
+/notebooks/
 
 # log files
 /tests/output/

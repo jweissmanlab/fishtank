@@ -11,7 +11,7 @@ def test_fix_overlaps_3d(overlapping_polygons):
 def test_fix_overlaps_2d(overlapping_polygons):
     overlapping_polygons = overlapping_polygons.dissolve("cell").reset_index().drop(columns=["global_z", "z"])
     polygons = ft.seg.fix_overlaps(overlapping_polygons, z=None, diameter=80)
-    assert polygons.cell.nunique() == 26
+    assert polygons.cell.nunique() == 27
 
 
 if __name__ == "__main__":

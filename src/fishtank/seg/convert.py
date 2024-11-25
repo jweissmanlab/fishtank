@@ -31,8 +31,8 @@ def masks_to_polygons(masks: np.ndarray, tolerance: float = 0.5, id: str = "cell
     has_layers = len(masks.shape) > 2
     if not has_layers:
         masks = np.expand_dims(masks, axis=0)
-    # Transpose and flip masks
-    masks = np.flip(masks.swapaxes(-1, -2), axis=-1)
+    # Transpose
+    masks = masks.swapaxes(-1, -2)
     # Convert masks to polygons
     for i in np.unique(masks)[1:]:
         mask = masks == i
@@ -99,4 +99,6 @@ def polygons_to_masks(
         masks = np.stack(masks, axis=0)
     else:
         masks = masks[0]
+    # flip y axis
+    masks = np.flip(masks, axis=-2)
     return masks.astype(np.uint16)

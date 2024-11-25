@@ -27,8 +27,8 @@ def test_aggregate_polygons_3d(caplog):
     with caplog.at_level(logging.INFO):
         ft.scripts.aggregate_polygons.main(args)
     assert "Loaded 33 polygons." in caplog.text
-    assert "27 polygons after fixing overlaps." in caplog.text
-    assert "17 polygons after removing polygons smaller than 2000.0." in caplog.text
+    assert "21 polygons after fixing overlaps." in caplog.text
+    assert "16 polygons after removing polygons smaller than 2000.0." in caplog.text
     assert "Saving polygons to tests/output/polygons_3d.json" in caplog.text
 
 
