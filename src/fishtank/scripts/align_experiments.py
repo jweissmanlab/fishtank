@@ -23,6 +23,8 @@ def get_parser():
     parser.add_argument("-m", "--moving", type=parse_path, required=True, help="Moving image directory")
     parser.add_argument("--ref_series", type=str, required=True, help="Reference series to use for alignment")
     parser.add_argument("--moving_series", type=str, required=True, help="Moving series to use for alignment")
+    parser.add_argument("--rotation", type=parse_path, default=None, 
+                        help="File path to rotation matrix, moving relative to ref, if available")    
     parser.add_argument("-o", "--output", type=parse_path, default="alignment.json", help="Output file path")
     parser.add_argument("--color", type=int, default=405, help="Color channel to use for alignment")
     parser.add_argument("--z_offset", type=int, default=-3, help="Z offset for alignment")
@@ -64,6 +66,36 @@ def _combined_mosaic(ref_mosaic, moving_mosaic, ref_px, moving_px):
     _paste_image(ref_mosaic, combined_mosaic[2], combined_px, ref_px)
     return combined_mosaic, combined_px
 
+def _rotate_mosaic(mosaic, 
+                   mosaic_bounds, 
+                   rotation_matrix_filename,
+                   micron_per_pixel: float = 0.107,):
+    from cv2 import warpAffine, BORDER_CONSTANT
+    # get original shape
+    mosaic_height, mosaic_width = mosaic.shape
+    # get rotation center:
+    center_y, center_x = mosaic_height // 2, mosaic_width // 2
+    # get rotation matrix
+    rotation = ft.utils.load_rotation(rotation_matrix_filename, center_y=center_y, center_x=center_x)
+    # generate new mosaic size:
+    rotation_cosine, rotation_sine = np.abs(rotation[0,0]), np.abs(rotation[0,1])
+    new_height = int(mosaic_height * rotation_cosine + mosaic_width * rotation_sine)
+    new_width = int(mosaic_height * rotation_sine + mosaic_width * rotation_cosine)
+    # generate new bounds
+    rotated_bounds = np.concatenate(
+        [(np.array([mosaic_bounds[0], mosaic_bounds[1]]) @ rotation)[:2],
+         (np.array([mosaic_bounds[2], mosaic_bounds[3]]) @ rotation)[:2]]
+    )
+    
+    # generate new rotation center
+    rotation[0,2] += (new_width/2)-center_x
+    rotation[1,2] += (new_height/2)-center_y
+    # rotate the mosaic
+    rotated_mosaic = warpAffine(mosaic, rotation, 
+                                (new_width, new_height), 
+                                borderMode=BORDER_CONSTANT, 
+                                borderValue=np.min(mosaic))
+    return rotated_mosaic, rotated_bounds, rotation
 
 def _save_mosaic(path, suffix, mosaic, dpi=600):
     """Save as a png file"""
@@ -113,6 +145,10 @@ def main(args):
     moving_mosaic = ski.exposure.rescale_intensity(
         moving_mosaic, in_range=(0, np.percentile(moving_mosaic, 98)), out_range=(0, 1)
     )
+    # Apply rotation matrix if available:
+    if args.rotation is not None:
+        logger.info(f"Rotating moving mosaic with rotation: {args.rotation}")
+        moving_mosaic, moving_bounds, rotation = _rotate_mosaic(moving_mosaic, moving_bounds, args.rotation)
     # Combined mosaic
     moving_px = (moving_bounds[[0, 1, 0, 1]] / moving_resolution).astype(int)
     moving_px += np.array([0, 0, moving_mosaic.shape[1], moving_mosaic.shape[0]])
