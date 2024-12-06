@@ -1,5 +1,6 @@
 import argparse
 import logging
+from pathlib import Path
 
 import geopandas as gpd
 import pandas as pd
@@ -36,38 +37,84 @@ def get_parser():
         "--alignment", type=parse_path, default=None, help="File used to align spots space to polygons space"
     )
     parser.add_argument("--map_z", type=bool, default=False, help="Map spot z values to polygon z values")
-    parser.set_defaults(func=main)
+    parser.set_defaults(func=assign_spots)
     return parser
 
 
-def main(args):
-    """Assign spots to the nearest polygon"""
+def assign_spots(
+    input: str | Path,
+    polygons: str | Path = "polygons.json",
+    output: str | Path = "assigned_spots.csv",
+    max_dist: float = 0,
+    cell_column: str = "cell",
+    subset: str | Path = None,
+    x_column: str = "global_x",
+    y_column: str = "global_y",
+    z_column: str = None,
+    polygons_z_column: str = None,
+    cell_fill: int = 0,
+    alignment: str | Path = None,
+    map_z: bool = False,
+):
+    """Assign spots to the nearest polygon.
+
+    fishtank assign-spots -i input -p polygons -o output
+
+    Parameters
+    ----------
+    input
+        Spots input file path.
+    polygons
+        Polygons input file path.
+    output
+        Output file path.
+    max_dist
+        Maximum distance from polygon edge for spot assignment.
+    cell_column
+        Column containing cell ID in polygons.
+    subset
+        Set of polygons to assign spots to.
+    x_column
+        Column containing x-coordinate in spots.
+    y_column
+        Column containing y-coordinate in spots.
+    z_column
+        Column containing z-slice in spots. None for 2D polygons.
+    polygons_z_column
+        Column containing z-slice in polygons. Defaults to z_column.
+    cell_fill
+        Fill value for unassigned cells.
+    alignment
+        File used to align spots space to polygons space.
+    map_z
+        Map spot z values to polygon z values.
+    """
     # Setup
     logger = logging.getLogger("assign_spots")
     logger.info(f"fishtank version: {ft.__version__}")
-    if args.polygons_z_column is None:
-        args.polygons_z_column = args.z_column
+    if polygons_z_column is None:
+        polygons_z_column = z_column
     # Load data
     logger.info("Loading spots.")
-    spots = pd.read_csv(args.input, keep_default_na=False)
+    spots = pd.read_csv(input, keep_default_na=False)
     logger.info("Loading polygons.")
-    polygons = gpd.read_file(args.polygons)
+    polygons = gpd.read_file(polygons)
     polygons = polygons.set_crs(None, allow_override=True)
     # Subset cells
-    if args.subset is not None:
+    if subset is not None:
         logger.info("Subsetting polygons.")
-        subset = pd.read_csv(args.subset, sep="\t", header=None)[0].values  # noqa: F841
-        polygons = polygons.query(f"{args.cell_column} in @subset").copy()
+        subset = pd.read_csv(subset, sep="\t", header=None)[0].values
+        polygons = polygons.query(f"{cell_column} in @subset").copy()
     # Map z values
-    if args.map_z:
-        polygon_z_slices = sorted(polygons[args.polygons_z_column].unique())
-        spot_z_slices = sorted(spots[args.z_column].unique())
+    if map_z:
+        polygon_z_slices = sorted(polygons[polygons_z_column].unique())
+        spot_z_slices = sorted(spots[z_column].unique())
         z_map = {spot_z_slices[i]: polygon_z_slices[i] for i in range(len(spot_z_slices))}
-        spots[args.z_column] = spots[args.z_column].map(z_map)
+        spots[z_column] = spots[z_column].map(z_map)
     # Align spots
-    if args.alignment is not None:
+    if alignment is not None:
         logger.info("Adjusting spot coordinates based on alignment.")
-        alignment = gpd.read_file(args.alignment)
+        alignment = gpd.read_file(alignment)
         alignment = alignment.set_crs(None, allow_override=True)
         spots = ft.correct.spot_alignment(spots, alignment)
     # Assign spots
@@ -75,17 +122,17 @@ def main(args):
     spots = ft.seg.assign_spots(
         spots,
         polygons,
-        max_dist=args.max_dist,
-        cell=args.cell_column,
-        x=args.x_column,
-        y=args.y_column,
-        z=args.z_column,
-        polygons_z=args.polygons_z_column,
+        max_dist=max_dist,
+        cell=cell_column,
+        x=x_column,
+        y=y_column,
+        z=z_column,
+        polygons_z=polygons_z_column,
     )
     # Fill unassigned cells
-    if args.cell_fill is not None:
-        spots[args.cell_column] = spots[args.cell_column].fillna(args.cell_fill).astype(int)
+    if cell_fill is not None:
+        spots[cell_column] = spots[cell_column].fillna(cell_fill).astype(int)
     # Save
     logger.info("Saving spot assignments.")
-    spots.to_csv(args.output, index=False)
+    spots.to_csv(output, index=False)
     logger.info("Done")

@@ -15,12 +15,8 @@ def spot_alignment(
     ----------
     spots
         a DataFrame of spot coordinates. Can be 2D or 3D.
-    polygons
-        a GeoDataFrame of cell outlines. Can be 2D or 3D.
-    max_dist
-        the maximum distance to search for the nearest polygon.
-    cell
-        the name of the cell column in the polygons.
+    alignment
+        a GeoDataFrame specifying the alignment between spots and polygons.
     x
         the name of the x column in the spots.
     y
