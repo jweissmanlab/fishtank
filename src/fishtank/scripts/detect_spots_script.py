@@ -9,7 +9,7 @@ import skimage as ski
 
 import fishtank as ft
 
-from ._utils import parse_dict, parse_list, parse_path
+from ._utils import parse_bool, parse_dict, parse_list, parse_path
 
 
 class FOVLoggerAdapter(logging.LoggerAdapter):  # noqa: D101
@@ -65,6 +65,7 @@ def get_parser():
         default=None,
         help="Series to include in intensity quantification. None for all series",
     )
+    parser.add_argument("--z_drift", type=parse_bool, default=False, help="Do drift correction in z")
     parser.set_defaults(func=detect_spots)
     return parser
 
@@ -86,6 +87,8 @@ def detect_spots(
     spot_radius: int = 5,
     exclude_bits: list[str] = ["DAPI", "empty"],  # noqa: B006
     include_series: list[str] | None = None,
+    z_drift: bool = False,
+    **kwargs,
 ):
     """Detect spots in an image and quantify their intensity.
 
@@ -125,6 +128,8 @@ def detect_spots(
         Bits to exclude from intensity quantification.
     include_series
         Series to include in intensity quantification.
+    z_drift
+        Do drift correction in z.
     """
     # Setup
     logger = logging.getLogger("detect_spots")
@@ -135,18 +140,25 @@ def detect_spots(
     channels = ft.io.read_color_usage(color_usage)
     if include_series is not None:
         channels = channels[channels["series"].isin(include_series)]
+    filter_name = filter
     filter = _get_filter(filter, filter_args)
     # Load reference
     logger.info(f"Loading reference series {ref_series}")
     ref_channels = channels.query("series == @ref_series")
     ref_img, attr = ft.io.read_fov(input, fov, channels=ref_channels, file_pattern=file_pattern)
-    reg_img = ref_img[ref_channels.bit == reg_bit].max(axis=(0, 1))
+    if z_drift:
+        logger.info("Correcting drift in z")
+        reg_img = ref_img[ref_channels.bit == reg_bit].max(axis=(0))
+        current_drift = np.zeros(3, dtype=int)
+    else:
+        reg_img = ref_img[ref_channels.bit == reg_bit].max(axis=(0, 1))
+        current_drift = np.zeros(2, dtype=int)
     # Get common image
     common_img = ref_img[ref_channels.bit.isin(common_bits)].squeeze()
     del ref_img
     if common_img.ndim > 3:
         common_img = common_img.max(axis=0)
-    logger.info(f"Applying {filter} filter")
+    logger.info(f"Applying {filter_name} filter")
     common_img = ski.util.apply_parallel(
         filter, common_img, chunks=(1, common_img.shape[1], common_img.shape[2]), dtype=common_img.dtype, channel_axis=0
     )
@@ -162,12 +174,12 @@ def detect_spots(
     )
     logger.info(f"Detected {positions.shape[0]} spots")
     spots = pd.DataFrame(positions[:, :3].astype(int), columns=["z", "y", "x"])
-    spots["z"] = (spots["z"] - 1).clip(0, common_img.shape[0] - 3)
+    max_z = common_img.shape[0] - 1
+    spots["z"] = (spots["z"] - 1).clip(0, max_z - 2)
     del common_img
     # Intensity quantification
     logger.info("Quantifying spot intensities")
     filtered_channels = channels.query("bit not in @exclude_bits").copy()
-    current_drift = np.zeros(2, dtype=int)
     for series, series_channels in filtered_channels.groupby("series", sort=False):
         # Read series image
         logger.info(f"Loading series {series}")
@@ -175,9 +187,17 @@ def detect_spots(
         channel_max = img.max(axis=(1, 2, 3))
         filtered_channels.loc[filtered_channels.series == series, "max_intensity"] = channel_max
         # Get the drift
-        drift = ski.registration.phase_cross_correlation(reg_img, img[series_channels.bit == reg_bit].max(axis=(0, 1)))[
-            0
-        ].astype(int)
+        if z_drift:
+            drift = ski.registration.phase_cross_correlation(reg_img, img[series_channels.bit == reg_bit].max(axis=0))[
+                0
+            ].astype(int)
+            if np.abs(drift[0] - current_drift[0]) > 3:
+                logger.warning(f"Large z drift detected: {drift[0]}. Using previous z drift: {current_drift[0]}")
+                drift[0] = current_drift[0]
+        else:
+            drift = ski.registration.phase_cross_correlation(
+                reg_img, img[series_channels.bit == reg_bit].max(axis=(0, 1))
+            )[0].astype(int)
         if np.sum(np.abs(drift - current_drift)) > 100:
             logger.warning(f"Large drift detected: {drift}. Using previous drift: {current_drift}")
             drift = current_drift
@@ -188,21 +208,24 @@ def detect_spots(
             drift = current_drift
         current_drift = drift
         logger.info(f"Series drift: {drift}")
-        filtered_channels.loc[filtered_channels.series == series, "x_drift"] = drift[1]
-        filtered_channels.loc[filtered_channels.series == series, "y_drift"] = drift[0]
+        filtered_channels.loc[filtered_channels.series == series, "x_drift"] = drift[-1]
+        filtered_channels.loc[filtered_channels.series == series, "y_drift"] = drift[-2]
+        if z_drift:
+            filtered_channels.loc[filtered_channels.series == series, "z_drift"] = drift[0]
         # Remove the registration channel
         img = img[series_channels.bit != reg_bit]
         series_channels = series_channels[series_channels.bit != reg_bit]
         # Filter the image
-        logger.info(f"Applying {filter} filter")
+        logger.info(f"Applying {filter_name} filter")
         for i in range(img.shape[0]):
             img[i] = ski.util.apply_parallel(
                 filter, img[i], chunks=(1, img.shape[-2], img.shape[-1]), dtype=img.dtype, channel_axis=0
             )
         # Get spot intensities
         logger.info("Getting spot intensities")
+        z = (spots.z if not z_drift else spots.z - drift[0]).clip(0, max_z)
         spots[series_channels.bit] = ft.decode.spot_intensities(
-            img, spots.x - drift[1], spots.y - drift[0], spots.z, spot_radius
+            img, spots.x - drift[-1], spots.y - drift[-2], z, spot_radius
         )
     # Clean up
     spots = spots.dropna().copy()

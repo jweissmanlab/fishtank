@@ -77,6 +77,7 @@ def aggregate_polygons(
     scale_factor: float = 0.107,
     tolerance: float = 0.5,
     save_union: bool = False,
+    **kwargs,
 ):
     """Aggregate polygons from multiple FOVs.
 
