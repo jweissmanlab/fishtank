@@ -20,6 +20,7 @@ def get_parser():
 def fovs(
     input: str | Path,
     file_pattern: str = "{series}/Conv_zscan_{fov}.dax",
+    **kwargs,
 ):
     """List fields of view in an input directory.
 

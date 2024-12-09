@@ -79,6 +79,7 @@ def cellpose(
     filter: str = None,
     filter_args: dict = None,
     gpu: bool = False,
+    **kwargs,
 ):
     """Segment cells using Cellpose.
 

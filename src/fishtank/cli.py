@@ -46,7 +46,6 @@ def main():
     args = parser.parse_args()
     func = args.func
     kwargs = vars(args)
-    kwargs.pop("func")
     func(**kwargs)
 
 

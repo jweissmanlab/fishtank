@@ -14,13 +14,15 @@ def _spot_intensity(img, x, y, z, radius, mask, agg=np.max):
     """Get intensity vector for a spot."""
     y_min, y_max = max(0, y - radius), min(img.shape[-2], y + radius + 1)
     x_min, x_max = max(0, x - radius), min(img.shape[-1], x + radius + 1)
-    if y_max - y_min != mask.shape[0] or x_max - x_min != mask.shape[1]:
+    if y_max - y_min != mask.shape[-2] or x_max - x_min != mask.shape[-1]:
         if y > img.shape[-2] or y < 0 or x > img.shape[-1] or x < 0:
             return np.ones(img.shape[0]) * np.nan
         mask = _circle_mask(x - x_min, y - y_min, radius, (y_max - y_min, x_max - x_min))
     if z is None:
         intensity = agg(img[:, y_min:y_max, x_min:x_max][:, mask], axis=-1)
     else:
+        if z >= img.shape[-3] or z < 0:
+            return np.ones(img.shape[0]) * np.nan
         intensity = agg(img[:, z, y_min:y_max, x_min:x_max][:, mask], axis=-1)
     return intensity
 

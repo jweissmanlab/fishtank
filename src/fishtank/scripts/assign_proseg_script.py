@@ -54,6 +54,7 @@ def assign_proseg(
     y_column: str = "global_y",
     z_column: str = "global_z",
     codebook: str | Path = None,
+    **kwargs,
 ):
     """Assign additional transcripts to cells using ProSeg.
 

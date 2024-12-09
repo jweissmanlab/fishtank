@@ -55,6 +55,7 @@ def assign_spots(
     cell_fill: int = 0,
     alignment: str | Path = None,
     map_z: bool = False,
+    **kwargs,
 ):
     """Assign spots to the nearest polygon.
 

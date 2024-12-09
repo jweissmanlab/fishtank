@@ -23,6 +23,8 @@ def test_detect_spots_3d(caplog):
             "unsharp_mask",
             "--filter_args",
             "sigma=10",
+            "--z_drift",
+            "True",
         ]
     )
     with caplog.at_level(logging.INFO):
@@ -31,7 +33,7 @@ def test_detect_spots_3d(caplog):
         ft.scripts.detect_spots(**kwargs)
     assert "Detecting spots with threshold 1000" in caplog.text
     assert "Detected 100 spots" in caplog.text
-    assert "Series drift: [0 0]" in caplog.text
+    assert "Series drift: [0 0 0]" in caplog.text
     assert "Saving results in tests/output/spots" in caplog.text
 
 

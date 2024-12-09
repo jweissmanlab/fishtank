@@ -95,6 +95,7 @@ def align_experiments(
     filter_sigma: float = 5,
     attachment: float = 15,
     tile_size: int = 100,
+    **kwargs,
 ):
     """Align experiments using optical flow.
 
