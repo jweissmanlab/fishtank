@@ -32,3 +32,10 @@ def parse_path(arg: str) -> Path:
     if arg is None:
         return None
     return Path(arg)
+
+
+def parse_bool(arg: str) -> bool:
+    """Parse boolean input"""
+    if arg is None:
+        return False
+    return arg.lower() in ["true", "1", "t", "y", "yes"]

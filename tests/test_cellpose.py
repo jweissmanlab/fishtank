@@ -7,7 +7,7 @@ import fishtank as ft
 
 @pytest.mark.slow
 def test_cellpose_2d(caplog):
-    parser = ft.scripts.cellpose.get_parser()
+    parser = ft.scripts.cellpose_script.get_parser()
     args = parser.parse_args(
         [
             "--input",
@@ -33,14 +33,16 @@ def test_cellpose_2d(caplog):
         ]
     )
     with caplog.at_level(logging.INFO):
-        ft.scripts.cellpose.main(args)
+        kwargs = vars(args)
+        kwargs.pop("func")
+        ft.scripts.cellpose(**kwargs)
     assert "Correcting illumination with tests/data/corrections" in caplog.text
     assert "Saving polygons to tests/output/cellpose_2d" in caplog.text
 
 
 @pytest.mark.slow
 def test_cellpose_3d(caplog):
-    parser = ft.scripts.cellpose.get_parser()
+    parser = ft.scripts.cellpose_script.get_parser()
     args = parser.parse_args(
         [
             "--input",
@@ -66,7 +68,9 @@ def test_cellpose_3d(caplog):
         ]
     )
     with caplog.at_level(logging.INFO):
-        ft.scripts.cellpose.main(args)
+        kwargs = vars(args)
+        kwargs.pop("func")
+        ft.scripts.cellpose(**kwargs)
     assert "Applying deconwolf filter from fishtank" in caplog.text
     assert "Downsampling image by a factor of 4" in caplog.text
     assert "Saving polygons to tests/output/cellpose_3d" in caplog.text

@@ -1,6 +1,7 @@
 import argparse
 import logging
 from functools import partial
+from pathlib import Path
 
 import numpy as np
 import pandas as pd
@@ -15,6 +16,18 @@ class FOVLoggerAdapter(logging.LoggerAdapter):  # noqa: D101
     def process(self, msg, kwargs):  # noqa: D102
         fov_number = self.extra.get("fov", "Unknown FOV")
         return f"[FOV {fov_number}] {msg}", kwargs
+
+
+def _get_filter(name, filter_args):
+    """Get a filter function by name"""
+    if name is None:
+        return lambda x: x
+    elif hasattr(ft.filters, name):
+        return partial(getattr(ft.filters, name), **filter_args)
+    elif hasattr(ski.filters, name):
+        return partial(getattr(ski.filters, name) ** filter_args)
+    else:
+        raise ValueError(f"Filter {name} not found in fishtank.filters or skimage.filters")
 
 
 def get_parser():
@@ -52,56 +65,99 @@ def get_parser():
         default=None,
         help="Series to include in intensity quantification. None for all series",
     )
-    parser.set_defaults(func=main)
+    parser.set_defaults(func=detect_spots)
     return parser
 
 
-def _get_filter(name, filter_args):
-    """Get a filter function by name"""
-    if name is None:
-        return lambda x: x
-    elif hasattr(ft.filters, name):
-        return partial(getattr(ft.filters, name), **filter_args)
-    elif hasattr(ski.filters, name):
-        return partial(getattr(ski.filters, name) ** filter_args)
-    else:
-        raise ValueError(f"Filter {name} not found in fishtank.filters or skimage.filters")
+def detect_spots(
+    input: str | Path,
+    fov: int,
+    ref_series: str,
+    common_bits: list[str],
+    reg_bit: str = "beads",
+    output: str | Path = "spots",
+    file_pattern: str = "{series}/Conv_zscan_{fov}.dax",
+    color_usage: str = "{input}/color_usage.csv",
+    filter: str = None,
+    filter_args: dict = None,
+    spot_min_sigma: int = 2,
+    spot_max_sigma: int = 20,
+    spot_threshold: int = 1000,
+    spot_radius: int = 5,
+    exclude_bits: list[str] = ["DAPI", "empty"],  # noqa: B006
+    include_series: list[str] | None = None,
+):
+    """Detect spots in an image and quantify their intensity.
 
+    fishtank detect-spots -i input -f 1 --ref_series H0M1 --common_bits DAPI,empty -o spots
 
-def main(args):
-    """Detect spots in an image and quantify their intensity"""
+    Parameters
+    ----------
+    input
+        Image file directory.
+    fov
+        Field of view to process.
+    ref_series
+        Reference series for drift correction.
+    common_bits
+        Common bits used for spot detection.
+    reg_bit
+        Bit used for series registration.
+    output
+        Output file path.
+    file_pattern
+        Naming pattern for image files.
+    color_usage
+        Path to color usage file.
+    filter
+        Filter to apply to the image.
+    filter_args
+        Additional filter arguments.
+    spot_min_sigma
+        Minimum sigma for spot detection.
+    spot_max_sigma
+        Maximum sigma for spot detection.
+    spot_threshold
+        Minimum intensity threshold for spot detection.
+    spot_radius
+        Spot radius for intensity quantification.
+    exclude_bits
+        Bits to exclude from intensity quantification.
+    include_series
+        Series to include in intensity quantification.
+    """
     # Setup
     logger = logging.getLogger("detect_spots")
-    logger = FOVLoggerAdapter(logger, {"fov": args.fov})
+    logger = FOVLoggerAdapter(logger, {"fov": fov})
     logger.info(f"fishtank version: {ft.__version__}")
-    if "{input}" in args.color_usage:
-        args.color_usage = args.color_usage.format(input=args.input)
-    channels = ft.io.read_color_usage(args.color_usage)
-    if args.include_series is not None:
-        channels = channels[channels["series"].isin(args.include_series)]
-    filter = _get_filter(args.filter, args.filter_args)
+    if "{input}" in color_usage:
+        color_usage = color_usage.format(input=input)
+    channels = ft.io.read_color_usage(color_usage)
+    if include_series is not None:
+        channels = channels[channels["series"].isin(include_series)]
+    filter = _get_filter(filter, filter_args)
     # Load reference
-    logger.info(f"Loading reference series {args.ref_series}")
-    ref_channels = channels.query("series == @args.ref_series")
-    ref_img, attr = ft.io.read_fov(args.input, args.fov, channels=ref_channels, file_pattern=args.file_pattern)
-    reg_img = ref_img[ref_channels.bit == args.reg_bit].max(axis=(0, 1))
+    logger.info(f"Loading reference series {ref_series}")
+    ref_channels = channels.query("series == @ref_series")
+    ref_img, attr = ft.io.read_fov(input, fov, channels=ref_channels, file_pattern=file_pattern)
+    reg_img = ref_img[ref_channels.bit == reg_bit].max(axis=(0, 1))
     # Get common image
-    common_img = ref_img[ref_channels.bit.isin(args.common_bits)].squeeze()
+    common_img = ref_img[ref_channels.bit.isin(common_bits)].squeeze()
     del ref_img
     if common_img.ndim > 3:
         common_img = common_img.max(axis=0)
-    logger.info(f"Applying {args.filter} filter")
+    logger.info(f"Applying {filter} filter")
     common_img = ski.util.apply_parallel(
         filter, common_img, chunks=(1, common_img.shape[1], common_img.shape[2]), dtype=common_img.dtype, channel_axis=0
     )
     # Detect spots
-    logger.info(f"Detecting spots with threshold {args.spot_threshold}")
+    logger.info(f"Detecting spots with threshold {spot_threshold}")
     common_img = np.pad(common_img, ((1, 1), (0, 0), (0, 0)), mode="constant")  # pad z axis
     positions = ski.feature.blob_log(
         common_img.astype(float),
-        min_sigma=args.spot_min_sigma,
-        max_sigma=args.spot_max_sigma,
-        threshold=args.spot_threshold,
+        min_sigma=spot_min_sigma,
+        max_sigma=spot_max_sigma,
+        threshold=spot_threshold,
         num_sigma=4,
     )
     logger.info(f"Detected {positions.shape[0]} spots")
@@ -110,24 +166,24 @@ def main(args):
     del common_img
     # Intensity quantification
     logger.info("Quantifying spot intensities")
-    filtered_channels = channels.query("bit not in @args.exclude_bits").copy()
+    filtered_channels = channels.query("bit not in @exclude_bits").copy()
     current_drift = np.zeros(2, dtype=int)
     for series, series_channels in filtered_channels.groupby("series", sort=False):
         # Read series image
         logger.info(f"Loading series {series}")
-        img, _ = ft.io.read_fov(args.input, args.fov, channels=series_channels, file_pattern=args.file_pattern)
+        img, _ = ft.io.read_fov(input, fov, channels=series_channels, file_pattern=file_pattern)
         channel_max = img.max(axis=(1, 2, 3))
         filtered_channels.loc[filtered_channels.series == series, "max_intensity"] = channel_max
         # Get the drift
-        drift = ski.registration.phase_cross_correlation(
-            reg_img, img[series_channels.bit == args.reg_bit].max(axis=(0, 1))
-        )[0].astype(int)
+        drift = ski.registration.phase_cross_correlation(reg_img, img[series_channels.bit == reg_bit].max(axis=(0, 1)))[
+            0
+        ].astype(int)
         if np.sum(np.abs(drift - current_drift)) > 100:
             logger.warning(f"Large drift detected: {drift}. Using previous drift: {current_drift}")
             drift = current_drift
-        if channel_max[series_channels.bit == args.reg_bit] < 1000:
+        if channel_max[series_channels.bit == reg_bit] < 1000:
             logger.warning(
-                f"Low intensity for registration channel: {channel_max[series_channels.bit == args.reg_bit]}. Using previous drift: {current_drift}"
+                f"Low intensity for registration channel: {channel_max[series_channels.bit == reg_bit]}. Using previous drift: {current_drift}"
             )
             drift = current_drift
         current_drift = drift
@@ -135,10 +191,10 @@ def main(args):
         filtered_channels.loc[filtered_channels.series == series, "x_drift"] = drift[1]
         filtered_channels.loc[filtered_channels.series == series, "y_drift"] = drift[0]
         # Remove the registration channel
-        img = img[series_channels.bit != args.reg_bit]
-        series_channels = series_channels[series_channels.bit != args.reg_bit]
+        img = img[series_channels.bit != reg_bit]
+        series_channels = series_channels[series_channels.bit != reg_bit]
         # Filter the image
-        logger.info(f"Applying {args.filter} filter")
+        logger.info(f"Applying {filter} filter")
         for i in range(img.shape[0]):
             img[i] = ski.util.apply_parallel(
                 filter, img[i], chunks=(1, img.shape[-2], img.shape[-1]), dtype=img.dtype, channel_axis=0
@@ -146,7 +202,7 @@ def main(args):
         # Get spot intensities
         logger.info("Getting spot intensities")
         spots[series_channels.bit] = ft.decode.spot_intensities(
-            img, spots.x - drift[1], spots.y - drift[0], spots.z, args.spot_radius
+            img, spots.x - drift[1], spots.y - drift[0], spots.z, spot_radius
         )
     # Clean up
     spots = spots.dropna().copy()
@@ -154,14 +210,14 @@ def main(args):
     spots["global_y"] = spots["y"] * attr["micron_per_pixel"] + attr["stage_position"][1]
     spots["global_z"] = spots["z"].apply(lambda x: attr["z_offsets"][x])
     spots["spot"] = spots.reset_index().index.values
-    spots["fov"] = args.fov
+    spots["fov"] = fov
     col_order = ["fov", "spot", "x", "y", "z", "global_x", "global_y", "global_z"]
     col_order = col_order + [x for x in spots.columns if x not in col_order]
     spots = spots[col_order]
-    filtered_channels["fov"] = args.fov
+    filtered_channels["fov"] = fov
     # Save results
-    logger.info(f"Saving results in {args.output}")
-    args.output.mkdir(parents=True, exist_ok=True)
-    spots.to_csv(args.output / f"spots_{args.fov}.csv", index=False)
-    filtered_channels.to_csv(args.output / f"channels_{args.fov}.csv", index=False)
+    logger.info(f"Saving results in {output}")
+    output.mkdir(parents=True, exist_ok=True)
+    spots.to_csv(output / f"spots_{fov}.csv", index=False)
+    filtered_channels.to_csv(output / f"channels_{fov}.csv", index=False)
     logger.info("Done")

@@ -27,7 +27,7 @@ def test_assign_spots_2d(polygons, spots):
 
 @pytest.mark.slow
 def test_assign_spots_script(caplog):
-    parser = ft.scripts.assign_spots.get_parser()
+    parser = ft.scripts.assign_spots_script.get_parser()
     args = parser.parse_args(
         [
             "-i",
@@ -47,7 +47,9 @@ def test_assign_spots_script(caplog):
         ]
     )
     with caplog.at_level(logging.INFO):
-        ft.scripts.assign_spots.main(args)
+        kwargs = vars(args)
+        kwargs.pop("func")
+        ft.scripts.assign_spots(**kwargs)
     assert "10 unique z values in spots range from 0 to 9" in caplog.text
     assert "Splitting polygons and spots into tiles" in caplog.text
     assert "Saving spot assignments" in caplog.text

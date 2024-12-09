@@ -1,5 +1,6 @@
 import argparse
 import logging
+from pathlib import Path
 
 import numpy as np
 import pandas as pd
@@ -36,32 +37,73 @@ def get_parser():
     parser.add_argument(
         "--codebook", type=parse_path, default=None, help="Codebook for assigning barcodes IDs to genes"
     )
-    parser.set_defaults(func=main)
+    parser.set_defaults(func=assign_proseg)
     return parser
 
 
-def main(args):
-    """Assign additional transcripts to cells using ProSeg"""
+def assign_proseg(
+    transcripts: str | Path,
+    proseg_transcripts: str | Path,
+    output: str | Path = "proseg_counts.csv",
+    min_jaccard: float = 0.4,
+    min_prob: float = 0.5,
+    cell_column: str = "cell",
+    cell_missing: int = 0,
+    barcode_column: str = "barcode_id",
+    x_column: str = "global_x",
+    y_column: str = "global_y",
+    z_column: str = "global_z",
+    codebook: str | Path = None,
+):
+    """Assign additional transcripts to cells using ProSeg.
+
+    fishtank assign-proseg -t transcripts -p proseg_transcripts -o output
+
+    Parameters
+    ----------
+    transcripts
+        Transcripts input file path.
+    proseg_transcripts
+        ProSeg transcripts input file path.
+    output
+        Output file path.
+    min_jaccard
+        Minimum transcript overlap for matching cells.
+    min_prob
+        Minimum ProSeg probability for a transcript to be assigned.
+    cell_column
+        Column containing cell ID in transcripts.
+    cell_missing
+        Cell ID for unassigned transcripts.
+    barcode_column
+        Column containing barcdoe ID in transcripts.
+    x_column
+        Column containing x-coordinate in transcripts.
+    y_column
+        Column containing y-coordinate in transcripts.
+    z_column
+        Column containing z-slice in transcripts.
+    codebook
+        Codebook for assigning barcodes IDs to genes.
+    """
     # Setup
     logger = logging.getLogger("assign_proseg")
     logger.info(f"fishtank version: {ft.__version__}")
-    x = args.x_column
-    y = args.y_column
-    z = args.z_column
+    x = x_column
+    y = y_column
+    z = z_column
     # Read transcripts
     logger.info("Loading transcripts")
-    transcripts = pd.read_csv(args.transcripts)
-    transcripts = transcripts[[args.cell_column, x, y, z, args.barcode_column]].rename(
-        columns={args.cell_column: "cell"}
-    )
-    transcripts["cell"] = transcripts["cell"].replace(args.cell_missing, np.nan)
+    transcripts = pd.read_csv(transcripts)
+    transcripts = transcripts[[cell_column, x, y, z, barcode_column]].rename(columns={cell_column: "cell"})
+    transcripts["cell"] = transcripts["cell"].replace(cell_missing, np.nan)
     transcripts = transcripts.round(2)
     # Read ProSeg transcripts
     logger.info("Loading ProSeg transcripts")
-    proseg = pd.read_csv(args.proseg_transcripts)
-    proseg = proseg.query("probability > @args.min_prob")[
-        ["observed_x", "observed_y", "observed_z", "assignment"]
-    ].rename(columns={"observed_x": x, "observed_y": y, "observed_z": z})
+    proseg = pd.read_csv(proseg_transcripts)
+    proseg = proseg.query("probability > @min_prob")[["observed_x", "observed_y", "observed_z", "assignment"]].rename(
+        columns={"observed_x": x, "observed_y": y, "observed_z": z}
+    )
     proseg = proseg.round(2)
     # Merge transcripts
     merged = transcripts.merge(proseg, on=[x, y, z], how="left")
@@ -85,7 +127,7 @@ def main(args):
         .first()
         .reset_index()
     )
-    mapping = mapping.query("jaccard >= @args.min_jaccard").copy()
+    mapping = mapping.query("jaccard >= @min_jaccard").copy()
     mapping.rename(columns={"cell": "mapped_cell"}, inplace=True)
     logger.info(f"{len(mapping)} cells out of {len(merged['cell'].unique())} aligned to ProSeg")
     # Assign transcripts
@@ -95,18 +137,18 @@ def main(args):
     merged["cell"] = merged["mapped_cell"].fillna(merged["cell"])
     logger.info(f"{(1 - merged.cell.isna().mean()):.2%} of transcripts in cells after")
     # Update barcodes
-    if args.codebook is not None:
+    if codebook is not None:
         logger.info("Assigning gene names to barcodes")
-        codebook = pd.read_csv(args.codebook)
+        codebook = pd.read_csv(codebook)
         barcode_names = codebook[codebook.columns[0]].to_dict()
-        merged[args.barcode_column] = merged[args.barcode_column].map(barcode_names)
+        merged[barcode_column] = merged[barcode_column].map(barcode_names)
     # Get counts
-    counts = merged.groupby("cell")[args.barcode_column].value_counts().unstack().fillna(0)
+    counts = merged.groupby("cell")[barcode_column].value_counts().unstack().fillna(0)
     counts = counts.astype(int)
     counts.index = counts.index.astype(int).values
     counts.columns.name = None
     counts = counts.loc[:, ~counts.columns.str.contains("Blank")]
     # Save counts
-    logger.info(f"Saving counts to {args.output}")
-    counts.to_csv(args.output)
+    logger.info(f"Saving counts to {output}")
+    counts.to_csv(output)
     logger.info("Done")

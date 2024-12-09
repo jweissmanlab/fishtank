@@ -42,6 +42,7 @@
 
     correct.illumination
     correct.color_normalization
+    correct.spot_alignment
 
 ```
 

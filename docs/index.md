@@ -7,6 +7,7 @@
 :maxdepth: 1
 
 api.md
+scripts.md
 changelog.md
 contributing.md
 ```
