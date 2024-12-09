@@ -9,7 +9,7 @@ def spot_alignment(
     y: str = "global_y",
     z: str | None = None,
 ) -> pd.DataFrame:
-    """Assigns spots to the nearest polygon
+    """Adjust spot coordinates based on alignment.
 
     Parameters
     ----------
@@ -22,7 +22,7 @@ def spot_alignment(
     y
         the name of the y column in the spots.
     z
-        the name of the z column in the spots. If None, aligment is done in 2D.
+        the name of the z column in the spots. If None, alignment is done in 2D.
 
     Returns
     -------
@@ -31,9 +31,14 @@ def spot_alignment(
     """
     spots = gpd.GeoDataFrame(spots, geometry=gpd.points_from_xy(spots[x], spots[y]))
     spots = gpd.sjoin(spots, alignment, how="left", predicate="within")
+    if "rotation" in alignment.columns:
+        rotation = alignment["rotation"].value_counts().idxmax()
+        spots["geometry"] = spots["geometry"].rotate(-rotation, origin=(0, 0))
+        spots[x] = spots.geometry.x
+        spots[y] = spots.geometry.y
     spots["x_shift"] = spots["x_shift"].fillna(0)
     spots["y_shift"] = spots["y_shift"].fillna(0)
     spots[x] = spots[x] + spots["x_shift"]
     spots[y] = spots[y] + spots["y_shift"]
-    spots.drop(columns=["index_right", "x_shift", "y_shift", "geometry"], inplace=True)
+    spots.drop(columns=["index_right", "x_shift", "y_shift", "geometry", rotation], inplace=True, errors="ignore")
     return spots
