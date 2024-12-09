@@ -69,33 +69,46 @@ def _combined_mosaic(ref_mosaic, moving_mosaic, ref_px, moving_px):
 def _rotate_mosaic(mosaic, 
                    mosaic_bounds, 
                    rotation_matrix_filename,
-                   micron_per_pixel: float = 0.107,):
+                   rotation_center=[0,0],
+                   micron_per_pixel: float = 0.107,
+                   ):
+    """Rotate the mosaic with a rotation matrix, centered around 0"""
     from cv2 import warpAffine, BORDER_CONSTANT
+    from fishtank.utils import load_rotation
     # get original shape
     mosaic_height, mosaic_width = mosaic.shape
     # get rotation center:
-    center_y, center_x = mosaic_height // 2, mosaic_width // 2
-    # get rotation matrix
-    rotation = ft.utils.load_rotation(rotation_matrix_filename, center_y=center_y, center_x=center_x)
+    if rotation_center is None:
+        center_y, center_x = mosaic_height // 2, mosaic_width // 2
+    else:
+        center_y, center_x = rotation_center
+    # get rotation matrix    
+    rotation = load_rotation(rotation_matrix_filename, center_y=center_y, center_x=center_x)
+    # generate four corners:
+    #bounds = np.array([offset_x, offset_y, offset_x + max_x, offset_y + max_y]) * micron_per_pixel
+    corners = np.array([[mosaic_bounds[0], mosaic_bounds[1]],
+                            [mosaic_bounds[2], mosaic_bounds[1]],
+                            [mosaic_bounds[0], mosaic_bounds[3]],
+                            [mosaic_bounds[2], mosaic_bounds[3]]])
+    rotated_corners = (corners @ rotation[:,:2])
+    print(corners, rotated_corners)
+    
+    # generate new bounds
+    rotated_bounds = np.concatenate([np.min(rotated_corners, axis=0), np.max(rotated_corners, axis=0)])
     # generate new mosaic size:
     rotation_cosine, rotation_sine = np.abs(rotation[0,0]), np.abs(rotation[0,1])
     new_height = int(mosaic_height * rotation_cosine + mosaic_width * rotation_sine)
     new_width = int(mosaic_height * rotation_sine + mosaic_width * rotation_cosine)
-    # generate new bounds
-    rotated_bounds = np.concatenate(
-        [(np.array([mosaic_bounds[0], mosaic_bounds[1]]) @ rotation)[:2],
-         (np.array([mosaic_bounds[2], mosaic_bounds[3]]) @ rotation)[:2]]
-    )
     
     # generate new rotation center
-    rotation[0,2] += (new_width/2)-center_x
-    rotation[1,2] += (new_height/2)-center_y
+    #rotation[0,2] += (new_width/2)-center_x
+    #rotation[1,2] += (new_height/2)-center_y
     # rotate the mosaic
     rotated_mosaic = warpAffine(mosaic, rotation, 
                                 (new_width, new_height), 
                                 borderMode=BORDER_CONSTANT, 
                                 borderValue=np.min(mosaic))
-    return rotated_mosaic, rotated_bounds, rotation
+    return rotated_mosaic, rotated_bounds, rotation, (center_x, center_y)
 
 def _save_mosaic(path, suffix, mosaic, dpi=600):
     """Save as a png file"""
@@ -148,7 +161,7 @@ def main(args):
     # Apply rotation matrix if available:
     if args.rotation is not None:
         logger.info(f"Rotating moving mosaic with rotation: {args.rotation}")
-        moving_mosaic, moving_bounds, rotation = _rotate_mosaic(moving_mosaic, moving_bounds, args.rotation)
+        moving_mosaic, moving_bounds, rotation_matrix, rotation_center = _rotate_mosaic(moving_mosaic, moving_bounds, args.rotation)
     # Combined mosaic
     moving_px = (moving_bounds[[0, 1, 0, 1]] / moving_resolution).astype(int)
     moving_px += np.array([0, 0, moving_mosaic.shape[1], moving_mosaic.shape[0]])
@@ -195,6 +208,8 @@ def main(args):
                 "geometry": geometry,
                 "x_shift": (coarse_shift[1] - tile_fine[1]) * moving_resolution,
                 "y_shift": (coarse_shift[0] - tile_fine[0]) * moving_resolution,
+                "rotation": rotation_matrix,
+                "rotation_center": rotation_center,
             }
         )
     alignment = gpd.GeoDataFrame(alignment, geometry="geometry", crs=None)
