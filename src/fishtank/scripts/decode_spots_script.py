@@ -56,6 +56,7 @@ def decode_spots(
     normalize_colors: bool = True,
     filter_output: bool = True,
     save_intensities: bool = False,
+    **kwargs,
 ):
     """Decode spots using specified strategy.
 
