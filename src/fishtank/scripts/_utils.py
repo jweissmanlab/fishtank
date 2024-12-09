@@ -1,5 +1,8 @@
 import ast
+import math
 from pathlib import Path
+
+import numpy as np
 
 
 def parse_dict(arg: str) -> dict:
@@ -39,3 +42,14 @@ def parse_bool(arg: str) -> bool:
     if arg is None:
         return False
     return arg.lower() in ["true", "1", "t", "y", "yes"]
+
+
+def parse_rotation(arg: str) -> float:
+    """Parse rotation input"""
+    if arg is None:
+        return None
+    elif arg.endswith(".npy"):
+        matrix = np.load(Path(arg))
+        radians = math.atan2(matrix[1, 0], matrix[0, 0])
+        return math.degrees(radians)
+    return float(arg)

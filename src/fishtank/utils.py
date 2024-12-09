@@ -5,6 +5,7 @@ import geopandas as gpd
 import numpy as np
 import shapely as shp
 
+
 def determine_fov_format(
     path: str | Path, series: int | str, file_pattern: str = "{series}/Conv_zscan_{fov}.dax", fov: int | str = 1
 ) -> str:
@@ -158,24 +159,3 @@ def create_mosaic(
             mosaic[:, y : y + img.shape[-2], x : x + img.shape[-1]] = img
     bounds = np.array([offset_x, offset_y, offset_x + max_x, offset_y + max_y]) * micron_per_pixel
     return mosaic, bounds
-
-
-## For Affine Transformation:
-def load_rotation(
-    rotation_matrix_file:str|Path,
-    center_x:int=0, 
-    center_y:int=0,
-    ) -> np.ndarray:
-    """Function to load manual rotation matrix and convert into cv2 mat"""
-    from cv2 import getRotationMatrix2D
-    from math import pi 
-    # load roatation matrix:
-    _rotation = np.load(rotation_matrix_file)
-    # check if the rotation matrix is valid:
-    if np.abs(np.linalg.det(_rotation) -1) > 1e-6:
-        raise ValueError("Invalid rotation matrix")
-    # calculate the rotation angle:
-    _rotation_angle = np.arcsin(_rotation[0,1]) / pi * 180
-    # generate rotation mat given the center of the image:
-    return getRotationMatrix2D((center_x, center_y), _rotation_angle, 1)
-    

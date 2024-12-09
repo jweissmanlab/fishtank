@@ -8,9 +8,8 @@ def spot_alignment(
     x: str = "global_x",
     y: str = "global_y",
     z: str | None = None,
-    rotation: np.ndarray | None = None,
 ) -> pd.DataFrame:
-    """Assigns spots to the nearest polygon
+    """Adjust spot coordinates based on alignment.
 
     Parameters
     ----------
@@ -23,29 +22,23 @@ def spot_alignment(
     y
         the name of the y column in the spots.
     z
-        the name of the z column in the spots. If None, aligment is done in 2D.
-    rotation
-        a 2D rotation matrix to apply to the spots before alignment.
-        
+        the name of the z column in the spots. If None, alignment is done in 2D.
+
     Returns
     -------
     spots
         the spots DataFrame with x and y columns shifted based on alignment.
     """
     spots = gpd.GeoDataFrame(spots, geometry=gpd.points_from_xy(spots[x], spots[y]))
-    if rotation is not None:
-        # apply rotation to these spots
-        spots[[x,y]] = spots[[x,y]] @ rotation[:2,:2] # apply rotation
-    elif 'rotation' in alignment.columns:
-        rotation = alignment['rotation'].iloc[0]
-        spots[[x,y]] = spots[[x,y]] @ rotation[:2,:2]
-    
     spots = gpd.sjoin(spots, alignment, how="left", predicate="within")
+    if "rotation" in alignment.columns:
+        rotation = alignment["rotation"].value_counts().idxmax()
+        spots["geometry"] = spots["geometry"].rotate(-rotation, origin=(0, 0))
+        spots[x] = spots.geometry.x
+        spots[y] = spots.geometry.y
     spots["x_shift"] = spots["x_shift"].fillna(0)
     spots["y_shift"] = spots["y_shift"].fillna(0)
-    #print(np.max(spots["x_shift"]), np.min(spots["y_shift"]))
-    
     spots[x] = spots[x] + spots["x_shift"]
     spots[y] = spots[y] + spots["y_shift"]
-    spots.drop(columns=["index_right", "x_shift", "y_shift", "geometry"], inplace=True)
+    spots.drop(columns=["index_right", "x_shift", "y_shift", "geometry", rotation], inplace=True, errors="ignore")
     return spots

@@ -14,7 +14,7 @@ from tqdm import tqdm
 
 import fishtank as ft
 
-from ._utils import parse_path
+from ._utils import parse_path, parse_rotation
 
 
 def _get_slice_and_resolution(path, series, file_pattern, z_offset):
@@ -78,6 +78,12 @@ def get_parser():
     parser.add_argument("--filter_sigma", type=float, default=5, help="Sigma for unsharp mask filter")
     parser.add_argument("--attachment", type=float, default=15, help="Attachment factor for optical flow")
     parser.add_argument("--tile_size", type=int, default=100, help="Size of shift tiles in pixels")
+    parser.add_argument(
+        "--rotation",
+        type=parse_rotation,
+        default=None,
+        help="Rotation matrix (.npy) or angle (float) to apply to moving images",
+    )
     parser.set_defaults(func=align_experiments)
     return parser
 
@@ -95,6 +101,7 @@ def align_experiments(
     filter_sigma: float = 5,
     attachment: float = 15,
     tile_size: int = 100,
+    rotation: float = None,
     **kwargs,
 ):
     """Align experiments using optical flow.
@@ -127,6 +134,8 @@ def align_experiments(
         Attachment factor for optical flow.
     tile_size
         Size of shift tiles in pixels.
+    rotation
+        Rotation matrix (.npy) or angle (float) of moving images.
     """
     # Setup
     logger = logging.getLogger("align_experiments")
@@ -156,6 +165,13 @@ def align_experiments(
     moving_mosaic = ski.exposure.rescale_intensity(
         moving_mosaic, in_range=(0, np.percentile(moving_mosaic, 98)), out_range=(0, 1)
     )
+    # Apply rotation
+    if rotation is not None:
+        logger.info(f"Subtracting rotation of {rotation} degrees from moving mosaic.")
+        moving_mosaic = ski.transform.rotate(moving_mosaic, -rotation, center=(0, 0), resize=True)
+        moving_bounds = np.array(
+            shp.affinity.rotate(shp.geometry.box(*moving_bounds[[0, 1, 2, 3]]), -rotation, origin=(0, 0)).bounds
+        )
     # Combined mosaic
     moving_px = (moving_bounds[[0, 1, 0, 1]] / moving_resolution).astype(int)
     moving_px += np.array([0, 0, moving_mosaic.shape[1], moving_mosaic.shape[0]])
@@ -205,6 +221,10 @@ def align_experiments(
             }
         )
     alignment = gpd.GeoDataFrame(alignment, geometry="geometry", crs=None)
+    # Rotate alignment
+    if rotation:
+        alignment["geometry"] = alignment["geometry"].apply(lambda x: shp.affinity.rotate(x, rotation, origin=(0, 0)))
+        alignment["rotation"] = rotation
     # Save alignment
     logger.info(f"Saving alignment tiles to {output}.")
     with warnings.catch_warnings():
