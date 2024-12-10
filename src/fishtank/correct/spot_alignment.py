@@ -40,5 +40,5 @@ def spot_alignment(
     spots["y_shift"] = spots["y_shift"].fillna(0)
     spots[x] = spots[x] + spots["x_shift"]
     spots[y] = spots[y] + spots["y_shift"]
-    spots.drop(columns=["index_right", "x_shift", "y_shift", "geometry", rotation], inplace=True, errors="ignore")
+    spots.drop(columns=["index_right", "x_shift", "y_shift", "geometry", "rotation"], inplace=True, errors="ignore")
     return spots
