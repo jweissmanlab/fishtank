@@ -167,10 +167,10 @@ def align_experiments(
     )
     # Apply rotation
     if rotation is not None:
-        logger.info(f"Subtracting rotation of {rotation} degrees from moving mosaic.")
-        moving_mosaic = ski.transform.rotate(moving_mosaic, -rotation, center=(0, 0), resize=True)
-        moving_bounds = np.array(
-            shp.affinity.rotate(shp.geometry.box(*moving_bounds[[0, 1, 2, 3]]), -rotation, origin=(0, 0)).bounds
+        logger.info(f"Moving mosaic rotated {rotation} degrees relative to reference mosaic.")
+        ref_mosaic = ski.transform.rotate(ref_mosaic, rotation, center=(0, 0), resize=True)
+        ref_bounds = np.array(
+            shp.affinity.rotate(shp.geometry.box(*ref_bounds[[0, 1, 2, 3]]), -rotation, origin=(0, 0)).bounds
         )
     # Combined mosaic
     moving_px = (moving_bounds[[0, 1, 0, 1]] / moving_resolution).astype(int)
@@ -223,7 +223,6 @@ def align_experiments(
     alignment = gpd.GeoDataFrame(alignment, geometry="geometry", crs=None)
     # Rotate alignment
     if rotation:
-        alignment["geometry"] = alignment["geometry"].apply(lambda x: shp.affinity.rotate(x, rotation, origin=(0, 0)))
         alignment["rotation"] = rotation
     # Save alignment
     logger.info(f"Saving alignment tiles to {output}.")

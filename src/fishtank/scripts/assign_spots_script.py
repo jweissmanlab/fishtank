@@ -98,6 +98,7 @@ def assign_spots(
     # Load data
     logger.info("Loading spots.")
     spots = pd.read_csv(input, keep_default_na=False)
+    spots.drop(columns=[cell_column], inplace=True, errors="ignore")
     logger.info("Loading polygons.")
     polygons = gpd.read_file(polygons)
     polygons = polygons.set_crs(None, allow_override=True)

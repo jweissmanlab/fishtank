@@ -31,14 +31,15 @@ def spot_alignment(
     """
     spots = gpd.GeoDataFrame(spots, geometry=gpd.points_from_xy(spots[x], spots[y]))
     spots = gpd.sjoin(spots, alignment, how="left", predicate="within")
-    if "rotation" in alignment.columns:
-        rotation = alignment["rotation"].value_counts().idxmax()
-        spots["geometry"] = spots["geometry"].rotate(-rotation, origin=(0, 0))
-        spots[x] = spots.geometry.x
-        spots[y] = spots.geometry.y
     spots["x_shift"] = spots["x_shift"].fillna(0)
     spots["y_shift"] = spots["y_shift"].fillna(0)
     spots[x] = spots[x] + spots["x_shift"]
     spots[y] = spots[y] + spots["y_shift"]
+    if "rotation" in alignment.columns:
+        spots = gpd.GeoDataFrame(spots, geometry=gpd.points_from_xy(spots[x], spots[y]))
+        rotation = -alignment["rotation"].value_counts().idxmax()
+        spots["geometry"] = spots["geometry"].rotate(-rotation, origin=(0, 0))
+        spots[x] = spots.geometry.x
+        spots[y] = spots.geometry.y
     spots.drop(columns=["index_right", "x_shift", "y_shift", "geometry", "rotation"], inplace=True, errors="ignore")
     return spots
