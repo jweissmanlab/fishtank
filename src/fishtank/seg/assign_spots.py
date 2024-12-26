@@ -163,6 +163,7 @@ def assign_spots(
     nearest = pd.concat(nearest).query("nearest.notna()")
     # return nearest, polygons
     nearest[cell] = polygons.loc[nearest["nearest"], cell].values
+    spots.drop(columns=[cell, f"{cell}_dist"], inplace=True, errors="ignore")
     spots = spots.merge(nearest[[cell, "dist"]], left_index=True, right_index=True, how="left")
     spots.rename(columns={"dist": f"{cell}_dist"}, inplace=True)
     if not has_layers:
