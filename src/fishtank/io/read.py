@@ -49,8 +49,15 @@ def read_xml(path: str | pathlib.Path, parse: bool = True) -> dict:
         if float(z_offset) not in z_offsets:
             z_offsets.append(float(z_offset))
     attrs["z_offsets"] = z_offsets
-    colors_str = re.search(r"shutter_([\d_]+)_s", tree["illumination"]["shutters"]).group(1)
-    attrs["colors"] = list(map(int, colors_str.split("_")))
+    shutters_str = tree["illumination"]["shutters"]
+    if "shutter_" in  shutters_str:
+        colors_str = re.search(r"shutter_([\d_]+)_s", shutters_str).group(1)
+        attrs["colors"] = list(map(int, colors_str.split("_")))
+    elif "f21" in shutters_str:
+        color_str = re.search(r'(\d+f21(?:_\d+f21)*_)', shutters_str).group(1)
+        attrs["colors"] = list(map(int, color_str.split("f21_")[:-1]))
+    else:
+        raise ValueError(f"Cannot parse colors from shutter string: {shutters_str}")
     return attrs
 
 
