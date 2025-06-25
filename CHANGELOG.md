@@ -12,4 +12,14 @@ and this project adheres to [Semantic Versioning][].
 
 ### Added
 
+-   Support for Zhuang lab XML format
+
+### Changed
+
+### Fixes
+
+## [0.0.1]
+
+### Added
+
 -   Basic tool, preprocessing and plotting functions
