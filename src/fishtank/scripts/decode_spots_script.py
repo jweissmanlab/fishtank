@@ -109,6 +109,8 @@ def decode_spots(
             em_codebooks[strategy["name"]] = file
         elif strategy["method"] == "logistic_regression":
             lr_weights[strategy["name"]] = file
+        elif strategy["method"] == "direct_report":
+            pass # no need to do anything
     # Load spots
     logger.info(f"Loading spots in {input}")
     if input.is_dir():
@@ -126,8 +128,8 @@ def decode_spots(
     if "{input}" in color_usage:
         color_usage = color_usage.format(input=input)
     channels = ft.io.read_color_usage(color_usage)
-    spots.drop(columns=set(channels.bit) - decoding_bits, inplace=True, errors="ignore")
-    channels = channels.query("bit in @decoding_bits").copy()
+    #spots.drop(columns=set(channels.bit) - decoding_bits, inplace=True, errors="ignore")
+    #channels = channels.query("bit in @decoding_bits").copy()
     # Color normalization
     if normalize_colors:
         logger.info("Normalizing spot intensities by color")
@@ -152,7 +154,9 @@ def decode_spots(
         spots[[name, f"{name}_prob", f"{name}_intensity", f"{name}_snr"]] = decoded
     # Save decoded spots
     logger.info(f"Saving decoded spots to {output}")
+    print(spots.columns)
     if not save_intensities:
         spots.drop(columns=channels.bit, inplace=True, errors="ignore")
+        print(spots.columns)
     spots.round(3).to_csv(output, index=False)
     logger.info("Done")
