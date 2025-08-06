@@ -40,9 +40,9 @@ def get_parser():
         default=None,
         help="Z-slices to use for segmentation (e.g., 1 or 1,2,3 or 1:20:5)",
     )
-    parser.add_argument("--model", type=str, default="nuclei", help="Cellpose model (e.g., cyto or nuclei)")
-    parser.add_argument("--diameter", type=int, default=18, help="Cellpose diameter")
-    parser.add_argument("--cellprob_threshold", type=float, default=-4, help="Cell probability threshold")
+    parser.add_argument("--model", type=str, default="cpsam", help="Cellpose model (e.g., cpsam)")
+    parser.add_argument("--diameter", type=int, default=None, help="Cellpose diameter")
+    parser.add_argument("--cellprob_threshold", type=float, default=0, help="Cell probability threshold")
     parser.add_argument("--downsample", type=int, default=None, help="Downsampling factor")
     parser.add_argument("--do_3D", type=bool, default=False, help="Use 3D segmentation")
     parser.add_argument(
@@ -68,10 +68,10 @@ def cellpose(
     corrections: str | Path = None,
     color_usage: str = "{input}/color_usage.csv",
     z_slices: list[int] | slice | None = None,
-    model: str = "nuclei",
-    diameter: int = 18,
-    cellprob_threshold: float = -4,
-    downsample: int = None,
+    model: str = "cpsam",
+    diameter: int | None = None,
+    cellprob_threshold: float = 0.0,
+    downsample: int | None = None,
     do_3D: bool = False,
     model_args: dict = None,
     clear_border: bool = False,
@@ -175,13 +175,14 @@ def cellpose(
     logger.info("Segmenting cells")
     with warnings.catch_warnings():
         warnings.simplefilter("ignore")
-        model = models.Cellpose(model_type=model, gpu=gpu)
+        model = models.CellposeModel(pretrained_model=model, gpu=gpu)
     masks = model.eval(
         img,
         diameter=diameter,
-        channels=[0, 0] if len(channels) == 1 else [0, 1],
         cellprob_threshold=cellprob_threshold,
         do_3D=do_3D,
+        channel_axis=0 if img.ndim >= 3 else None,
+        z_axis=1 if img.ndim == 4 else None,
         **model_args,
     )[0]
     # Clear border

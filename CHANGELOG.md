@@ -12,9 +12,20 @@ and this project adheres to [Semantic Versioning][].
 
 ### Added
 
+### Changed
+
+### Fixes
+
+## [0.1.0]
+
+### Added
+
 -   Support for Zhuang lab XML format
+-   Switched to Cellpose>=4.0.0 to use SAM model
 
 ### Changed
+
+-  "nuclei" and "cyto" models are no longer supported, use "cpsam" instead
 
 ### Fixes
 
