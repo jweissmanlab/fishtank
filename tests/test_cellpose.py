@@ -5,7 +5,7 @@ import pytest
 import fishtank as ft
 
 
-@pytest.mark.slow
+#@pytest.mark.slow
 def test_cellpose_2d(caplog):
     parser = ft.scripts.cellpose_script.get_parser()
     args = parser.parse_args(
@@ -17,9 +17,7 @@ def test_cellpose_2d(caplog):
             "--fov",
             "1",
             "--model",
-            "nuclei",
-            "--diameter",
-            "80",
+            "cpsam",
             "--min_size",
             "100",
             "--z_slices",
@@ -52,7 +50,7 @@ def test_cellpose_3d(caplog):
             "--fov",
             "1",
             "--model",
-            "nuclei",
+            "spsam",
             "--diameter",
             "20",
             "--downsample",
