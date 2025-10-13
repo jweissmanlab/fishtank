@@ -101,6 +101,7 @@ def assign_spots(
     y: str = "global_y",
     z: str | None = None,
     polygons_z: str | None = None,
+    fov: str | None = None
 ) -> pd.DataFrame:
     """Assigns spots to the nearest polygon
 
@@ -122,6 +123,8 @@ def assign_spots(
         the name of the z column in the spots. If None, the polygons are assumed to be 2D.
     polygons_z
         the name of the z column in the polygons. If None, the spots z values will be used.
+    fov
+        the name of the fov column in the spots. If None, will do global alignment.
 
     Returns
     -------
