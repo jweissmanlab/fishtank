@@ -14,7 +14,7 @@ def get_parser():
     """Get parser for decode_spots script"""
     parser = argparse.ArgumentParser(add_help=False)
     parser.add_argument("-i", "--input", type=parse_path, required=True, help="Inpute file path or directory")
-    parser.add_argument("-s", "--strategy", type=parse_path, required=True, help="Decoding strategy file")
+    parser.add_argument("-s", "--strategy", type=parse_path, default=None, help="Decoding strategy file")
     parser.add_argument("-o", "--output", type=parse_path, default="decoded_spots", help="Output file path")
     parser.add_argument(
         "--file_pattern", type=str, default="spots_{fov}.csv", help="If input is a directory, naming pattern for files"
@@ -46,7 +46,7 @@ def _save_decoding_plot(path, suffix):
 
 def decode_spots(
     input: str | Path,
-    strategy: str | Path,
+    strategy: str | Path | None = None,
     output: str | Path = "decoded_spots",
     file_pattern: str = "spots_{fov}.csv",
     fovs: list[int] | slice | None = None,
@@ -92,23 +92,24 @@ def decode_spots(
     logger.info(f"fishtank version: {ft.__version__}")
     # Load strategy
     logger.info(f"Loading decoding strategy from {strategy}")
-    strategies = pd.read_csv(strategy)
     em_codebooks = {}
     lr_weights = {}
-    decoding_bits = set()
-    for _, strategy in strategies.iterrows():
-        strategy = strategy.to_dict()
-        file = pd.read_csv(strategy["file"], index_col=0, keep_default_na=False)
-        decoding_bits.update(set(file.columns.values))
-        if strategy["method"] == "expectation_maximization":
-            whitelist = strategy.get("whitelist", None)
-            if whitelist is not None:
-                logger.info(f"Using whitelist for {strategy['name']}")
-                whitelist = pd.read_csv(whitelist, sep="\t", header=None)[0].values
-                file = file.loc[whitelist, :].copy()
-            em_codebooks[strategy["name"]] = file
-        elif strategy["method"] == "logistic_regression":
-            lr_weights[strategy["name"]] = file
+    if strategy is not None:
+        strategies = pd.read_csv(strategy)
+        decoding_bits = set()
+        for _, strategy in strategies.iterrows():
+            strategy = strategy.to_dict()
+            file = pd.read_csv(strategy["file"], index_col=0, keep_default_na=False)
+            decoding_bits.update(set(file.columns.values))
+            if strategy["method"] == "expectation_maximization":
+                whitelist = strategy.get("whitelist", None)
+                if whitelist is not None:
+                    logger.info(f"Using whitelist for {strategy['name']}")
+                    whitelist = pd.read_csv(whitelist, sep="\t", header=None)[0].values
+                    file = file.loc[whitelist, :].copy()
+                em_codebooks[strategy["name"]] = file
+            elif strategy["method"] == "logistic_regression":
+                lr_weights[strategy["name"]] = file
     # Load spots
     logger.info(f"Loading spots in {input}")
     if input.is_dir():
@@ -126,8 +127,9 @@ def decode_spots(
     if "{input}" in color_usage:
         color_usage = color_usage.format(input=input)
     channels = ft.io.read_color_usage(color_usage)
-    spots.drop(columns=set(channels.bit) - decoding_bits, inplace=True, errors="ignore")
-    channels = channels.query("bit in @decoding_bits").copy()
+    if strategy is not None:
+        spots.drop(columns=set(channels.bit) - decoding_bits, inplace=True, errors="ignore")
+        channels = channels.query("bit in @decoding_bits").copy()
     # Color normalization
     if normalize_colors:
         logger.info("Normalizing spot intensities by color")

@@ -5,7 +5,7 @@ import pytest
 import fishtank as ft
 
 
-#@pytest.mark.slow
+@pytest.mark.slow
 def test_cellpose_2d(caplog):
     parser = ft.scripts.cellpose_script.get_parser()
     args = parser.parse_args(

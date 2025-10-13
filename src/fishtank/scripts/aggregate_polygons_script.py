@@ -17,20 +17,30 @@ from ._utils import parse_index, parse_path
 def _load_fov_polygons(
     fov,
     path,
-    file_pattern="{fov}_cells.json",
+    file_pattern="polygons_{fov}.json",
     x_offset_column="x_offset",
     y_offset_column="y_offset",
     scale_factor=0.107,
     tolerance=0.5,
+    flip_horizontal=False,
+    flip_vertical=False,
+    img_size = (2304, 2304)
 ):
     """Load and rescale polygons for a single FOV."""
     path = Path(path)
     polygons = gpd.read_file(path / file_pattern.format(fov=fov)).reset_index(drop=True).assign(fov=fov)
     polygons.crs = None
     if len(polygons) == 0:
-        return []
+        return None
+    if flip_horizontal or flip_vertical:
+        polygons.geometry = polygons.geometry.scale(
+            xfact=-1 if flip_horizontal else 1,
+            yfact=-1 if flip_vertical else 1,
+            origin=(0, 0)
+        ).translate(xoff=img_size[0] if flip_horizontal else 0, yoff=img_size[1] if flip_vertical else 0)
     if scale_factor != 1:
         polygons.geometry = polygons.geometry.affine_transform([scale_factor, 0, 0, scale_factor, 0, 0])
+
     if x_offset_column is not None:
         polygons.geometry = polygons.geometry.translate(
             xoff=polygons[x_offset_column][0], yoff=polygons[y_offset_column][0]
@@ -59,6 +69,12 @@ def get_parser():
     parser.add_argument("--scale_factor", type=float, default=0.107, help="Factor for converting pixels to microns")
     parser.add_argument("--tolerance", type=float, default=0.5, help="Tolerance from polygon simplification (microns)")
     parser.add_argument("--save_union", type=bool, default=False, help="Save polygons flattened (unioned) to 2D")
+    parser.add_argument(
+        "--flip_horizontal", type=bool, default=False, help="Flip polygons horizontally"
+    )
+    parser.add_argument(
+        "--flip_vertical", type=bool, default=False, help="Flip polygons vertically"
+    )
     parser.set_defaults(func=aggregate_polygons)
     return parser
 
@@ -77,6 +93,8 @@ def aggregate_polygons(
     scale_factor: float = 0.107,
     tolerance: float = 0.5,
     save_union: bool = False,
+    flip_horizontal: bool = False,
+    flip_vertical: bool = False,
     **kwargs,
 ):
     """Aggregate polygons from multiple FOVs.
@@ -129,6 +147,8 @@ def aggregate_polygons(
         y_offset_column=y_offset_column,
         scale_factor=scale_factor,
         tolerance=tolerance,
+        flip_horizontal=flip_horizontal,
+        flip_vertical=flip_vertical,
     )
     with mp.Pool(mp.cpu_count()) as pool:
         polygons = list(tqdm(pool.imap_unordered(parallel_func, fovs), total=len(fovs)))
@@ -162,7 +182,7 @@ def aggregate_polygons(
     if save_union:
         union_path = str(output).replace(".json", "_union.json")
         logger.info(f"Saving unioned polygons to {union_path}")
-        polygons_union = polygons.dissolve(by="cell").reset_index()[["cell", "geometry"]]
+        polygons_union = polygons.dissolve(by="cell").reset_index()[["cell", "fov", "geometry"]]
         polygons_union.geometry = polygons_union.geometry.buffer(-1.5).buffer(2)
         polygons_union.geometry = polygons_union.simplify(0.5)
         with warnings.catch_warnings():

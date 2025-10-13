@@ -16,6 +16,18 @@ and this project adheres to [Semantic Versioning][].
 
 ### Fixes
 
+## [0.1.1]
+
+### Added
+
+### Changed
+
+-  Strategy is now optional for decode_spots
+
+### Fixes
+
+- aggregate_polygons now works when no FOVs overlap
+
 ## [0.1.0]
 
 ### Added

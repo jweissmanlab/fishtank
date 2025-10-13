@@ -38,19 +38,23 @@ def _get_overlap_graph(polygons_2d, cell="cell", fov="fov"):
 
 def _combine_3d(polygon_1, polygon_2, z="global_z"):
     """intersection, union, and difference of 3D polygons."""
-    merged = polygon_1.merge(polygon_2, how="outer", on=[z], suffixes=["_1", "_2"])
-    merged = merged.fillna(shp.geometry.Polygon())
-    merged["intersection"] = merged.geometry_1.intersection(merged.geometry_2)
-    intersection = merged.loc[~merged["intersection"].is_empty, ["intersection", z]].rename(
-        columns={"intersection": "geometry"}
-    )
-    merged["union"] = merged.geometry_1.union(merged.geometry_2)
-    union = merged.loc[~merged["union"].is_empty, ["union", z]].rename(columns={"union": "geometry"})
-    merged["difference"] = merged.geometry_1.difference(merged.geometry_2)
-    difference = merged.loc[~merged["difference"].is_empty, ["difference", z]].rename(
-        columns={"difference": "geometry"}
-    )
-    return intersection, union, difference
+    try:
+        merged = polygon_1.merge(polygon_2, how="outer", on=[z], suffixes=["_1", "_2"])
+        merged = merged.fillna(shp.geometry.Polygon())
+        merged["intersection"] = merged.geometry_1.intersection(merged.geometry_2)
+        intersection = merged.loc[~merged["intersection"].is_empty, ["intersection", z]].rename(
+            columns={"intersection": "geometry"}
+        )
+        merged["union"] = merged.geometry_1.union(merged.geometry_2)
+        union = merged.loc[~merged["union"].is_empty, ["union", z]].rename(columns={"union": "geometry"})
+        merged["difference"] = merged.geometry_1.difference(merged.geometry_2)
+        difference = merged.loc[~merged["difference"].is_empty, ["difference", z]].rename(
+            columns={"difference": "geometry"}
+        )
+        return intersection, union, difference
+    except shp.errors.GEOSException as e:
+        print("GEOSException encountered:", e)
+    return None, None, None
 
 
 def _area_3d(polygon):
@@ -75,7 +79,9 @@ def _fix_overlaps(polygons, min_ioa=0.2, cell="cell", z="global_z", fov="fov", t
         polygon_1 = polygons_3d[edge[0]]
         polygon_2 = polygons_3d[edge[1]]
         intersection, union, difference = _combine_3d(polygon_1, polygon_2, z)
-        intersection_area = _area_3d(intersection)
+        intersection_area = 0
+        if intersection is not None:
+            intersection_area = _area_3d(intersection)
         # Do nothing if the intersection is empty
         if intersection_area == 0:
             overlap_graph.remove_edge(*edge)
@@ -98,7 +104,7 @@ def _fix_overlaps(polygons, min_ioa=0.2, cell="cell", z="global_z", fov="fov", t
     ).drop(columns="drop")
     polygons = polygons_3d.merge(polygons_2d.drop(columns="geometry"), on=cell, how="left")
     polygons = polygons[polygons.area > 1].copy()
-    polygons = polygons.drop(columns=set(z_mapping.columns) - {z}).merge(z_mapping, on=z, how="left")
+    polygons = polygons.drop(columns=set(z_mapping.columns) - {z, fov}).merge(z_mapping, on=z, how="left")
     return polygons
 
 
@@ -150,6 +156,9 @@ def fix_overlaps(
         polygons[z] = 0
     logger.info("Splitting polygons into edge and interior sets.")
     edge_polygons, interior_polygons = _get_edge_polygons(polygons, fov=fov, cell=cell, buffer=diameter / 2)
+    if len(edge_polygons) == 0:
+        logger.info("No edge polygons found, skipping overlap fixing.")
+        return polygons
     logger.info("Splitting edge polygons into tiles.")
     edge_tiles, _ = tile_polygons(edge_polygons, tile_shape=tile_shape, buffer=diameter, cell=cell)
     logger.info("Fixing overlapping polygons in parallel.")

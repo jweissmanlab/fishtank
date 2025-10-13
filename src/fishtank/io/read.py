@@ -53,9 +53,9 @@ def read_xml(path: str | pathlib.Path, parse: bool = True) -> dict:
     if "shutter_" in  shutters_str:
         colors_str = re.search(r"shutter_([\d_]+)_s", shutters_str).group(1)
         attrs["colors"] = list(map(int, colors_str.split("_")))
-    elif "f21" in shutters_str:
-        color_str = re.search(r'(\d+f21(?:_\d+f21)*_)', shutters_str).group(1)
-        attrs["colors"] = list(map(int, color_str.split("f21_")[:-1]))
+    elif re.search(r'f\d+', shutters_str):
+        matches = re.findall(r'(\d+)(?=f\d+)', shutters_str)
+        attrs["colors"] = list(map(int, matches))
     else:
         raise ValueError(f"Cannot parse colors from shutter string: {shutters_str}")
     return attrs
