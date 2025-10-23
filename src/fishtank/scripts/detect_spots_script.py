@@ -29,6 +29,24 @@ def _get_filter(name, filter_args):
     else:
         raise ValueError(f"Filter {name} not found in fishtank.filters or skimage.filters")
 
+def _get_reg_img(img, reg_bit, reg_color, channels, reg_z_slice=None, z_drift=False):
+    """Return the registration image and initialize the drift vector."""
+    if reg_color is not None:
+        reg_channel = channels.query("color == @reg_color")
+        if reg_channel.empty:
+            raise ValueError(f"Registration color {reg_color} not found in color usage")
+        reg_bit = reg_channel.bit.values[0]
+    reg_img = img[channels.bit == reg_bit]
+    if reg_img.size == 0:
+        raise ValueError(f"Registration bit {reg_bit} not found in image channels")
+    if reg_z_slice is not None:
+        reg_img = reg_img[:, reg_z_slice].max(axis=0)
+    elif z_drift:
+        reg_img = reg_img.max(axis=0)
+    else:
+        reg_img = reg_img.max(axis=(0, 1))
+    return reg_img
+
 
 def get_parser():
     """Get parser for detect_spots script"""
@@ -66,6 +84,15 @@ def get_parser():
         help="Series to include in intensity quantification. None for all series",
     )
     parser.add_argument("--z_drift", type=parse_bool, default=False, help="Do drift correction in z")
+    parser.add_argument(
+        "--reg_min_intensity", type=int, default=1000, help="Minimum intensity for registration channel to consider drift valid"
+    )
+    parser.add_argument(
+        "--reg_color", type=int, default=None, help="Color name for registration channel (overrides reg_bit if provided)"
+    )
+    parser.add_argument(
+        "--reg_z_slice", type=int, default=None, help="Z slice to use for registration (overrides z_drift if provided)"
+    )
     parser.set_defaults(func=detect_spots)
     return parser
 
@@ -88,6 +115,9 @@ def detect_spots(
     exclude_bits: list[str] = ["DAPI", "empty"],  # noqa: B006
     include_series: list[str] | None = None,
     z_drift: bool = False,
+    reg_min_intensity: int = 1000,
+    reg_color: int | None = None,
+    reg_z_slice: int | None = None,
     **kwargs,
 ):
     """Detect spots in an image and quantify their intensity.
@@ -130,6 +160,12 @@ def detect_spots(
         Series to include in intensity quantification.
     z_drift
         Do drift correction in z.
+    reg_min_intensity
+        Minimum intensity for registration channel to consider drift valid.
+    reg_color
+        Color name for registration channel (overrides reg_bit if provided).
+    reg_z_slice
+        Z slice to use for registration (overrides z_drift if provided).
     """
     # Setup
     logger = logging.getLogger("detect_spots")
@@ -142,22 +178,36 @@ def detect_spots(
         channels = channels[channels["series"].isin(include_series)]
     filter_name = filter
     filter = _get_filter(filter, filter_args)
-    # Load reference
+    # Get reference image
     logger.info(f"Loading reference series {ref_series}")
     ref_channels = channels.query("series == @ref_series")
     ref_img, attr = ft.io.read_fov(input, fov, channels=ref_channels, file_pattern=file_pattern)
-    if z_drift:
-        logger.info("Correcting drift in z")
-        reg_img = ref_img[ref_channels.bit == reg_bit].max(axis=(0))
-        current_drift = np.zeros(3, dtype=int)
-    else:
-        reg_img = ref_img[ref_channels.bit == reg_bit].max(axis=(0, 1))
-        current_drift = np.zeros(2, dtype=int)
+    reg_img = _get_reg_img(
+        ref_img, reg_bit, reg_color, ref_channels,
+        reg_z_slice=reg_z_slice, z_drift=z_drift
+    )
+    current_drift = np.zeros(3, dtype=int) if z_drift else np.zeros(2, dtype=int)
     # Get common image
-    common_img = ref_img[ref_channels.bit.isin(common_bits)].squeeze()
+    if len(ref_channels.query("bit in @common_bits")) == len(common_bits):
+        common_img = ref_img[ref_channels.bit.isin(common_bits)].squeeze()
+        if common_img.ndim > 3: # (C, Z, Y, X)
+            common_img = common_img.max(axis=0) # (Z, Y, X)
+    else:
+        common_img = []
+        logger.info("Getting common bit max projection")
+        for series, series_channels in channels.query("bit in @common_bits").groupby("series", sort=False):
+            logger.info(f"Loading series {series}")
+            img, _ = ft.io.read_fov(input, fov, channels=series_channels, file_pattern=file_pattern)
+            series_reg_img = _get_reg_img(
+                img, reg_bit, reg_color, series_channels,
+                reg_z_slice=reg_z_slice, z_drift=z_drift
+            )
+            drift = ski.registration.phase_cross_correlation(reg_img, series_reg_img)[0].astype(int)
+            logger.info(f"Series drift: {drift}")
+            img = np.roll(img, shift=(-drift[0], -drift[1]), axis=(-2, -1)) # apply drift correction
+            common_img.append(img.max(axis=0))  # (Z, Y, X)
+        common_img = np.stack(common_img).max(axis=0)  # (Z, Y, X)
     del ref_img
-    if common_img.ndim > 3:
-        common_img = common_img.max(axis=0)
     logger.info(f"Applying {filter_name} filter")
     common_img = ski.util.apply_parallel(
         filter, common_img, chunks=(1, common_img.shape[1], common_img.shape[2]), dtype=common_img.dtype, channel_axis=0
@@ -187,21 +237,19 @@ def detect_spots(
         channel_max = img.max(axis=(1, 2, 3))
         filtered_channels.loc[filtered_channels.series == series, "max_intensity"] = channel_max
         # Get the drift
+        series_reg_img = _get_reg_img(
+            img, reg_bit, reg_color, series_channels,
+            reg_z_slice=reg_z_slice, z_drift=z_drift
+        )
+        drift = ski.registration.phase_cross_correlation(reg_img, series_reg_img)[0].astype(int)
         if z_drift:
-            drift = ski.registration.phase_cross_correlation(reg_img, img[series_channels.bit == reg_bit].max(axis=0))[
-                0
-            ].astype(int)
             if np.abs(drift[0] - current_drift[0]) > 3:
                 logger.warning(f"Large z drift detected: {drift[0]}. Using previous z drift: {current_drift[0]}")
                 drift[0] = current_drift[0]
-        else:
-            drift = ski.registration.phase_cross_correlation(
-                reg_img, img[series_channels.bit == reg_bit].max(axis=(0, 1))
-            )[0].astype(int)
         if np.sum(np.abs(drift - current_drift)) > 100:
             logger.warning(f"Large drift detected: {drift}. Using previous drift: {current_drift}")
             drift = current_drift
-        if channel_max[series_channels.bit == reg_bit] < 1000:
+        if channel_max[series_channels.bit == reg_bit] < reg_min_intensity:
             logger.warning(
                 f"Low intensity for registration channel: {channel_max[series_channels.bit == reg_bit]}. Using previous drift: {current_drift}"
             )
@@ -213,8 +261,9 @@ def detect_spots(
         if z_drift:
             filtered_channels.loc[filtered_channels.series == series, "z_drift"] = drift[0]
         # Remove the registration channel
-        img = img[series_channels.bit != reg_bit]
-        series_channels = series_channels[series_channels.bit != reg_bit]
+        if reg_color is None:
+            img = img[series_channels.bit != reg_bit]
+            series_channels = series_channels[series_channels.bit != reg_bit]
         # Filter the image
         logger.info(f"Applying {filter_name} filter")
         for i in range(img.shape[0]):

@@ -18,7 +18,7 @@ def test_detect_spots_3d(caplog):
             "--ref_series",
             "H0R1",
             "--common_bits",
-            "r52,r52",
+            "r52,r53",
             "--filter",
             "unsharp_mask",
             "--filter_args",
