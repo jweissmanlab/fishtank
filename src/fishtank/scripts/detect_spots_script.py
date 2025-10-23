@@ -188,25 +188,26 @@ def detect_spots(
     )
     current_drift = np.zeros(3, dtype=int) if z_drift else np.zeros(2, dtype=int)
     # Get common image
-    if len(ref_channels.query("bit in @common_bits")) > 0:
+    if len(ref_channels.query("bit in @common_bits")) == len(common_bits):
         common_img = ref_img[ref_channels.bit.isin(common_bits)].squeeze()
-        common_drift = None
+        if common_img.ndim > 3: # (C, Z, Y, X)
+            common_img = common_img.max(axis=0) # (Z, Y, X)
     else:
-        common_series = channels.query("bit in @common_bits").series.unique()[0]
-        common_channels = channels.query("series == @common_series")
-        logger.info(f"Loading common series {common_series}")
-        common_img, _ = ft.io.read_fov(input, fov, channels=common_channels, file_pattern=file_pattern)
-        common_reg_img = _get_reg_img(
-            common_img, reg_bit, reg_color, common_channels,
-            reg_z_slice=reg_z_slice, z_drift=z_drift
-        )
-        common_drift = ski.registration.phase_cross_correlation(reg_img, common_reg_img)[0].astype(int)
-        if common_drift.size == 2:  # if common drift is 2D, make it 3D
-            common_drift = np.insert(common_drift, 0, 0.0)
-        del common_reg_img
+        common_img = []
+        logger.info("Getting common bit max projection")
+        for series, series_channels in channels.query("bit in @common_bits").groupby("series", sort=False):
+            logger.info(f"Loading series {series}")
+            img, _ = ft.io.read_fov(input, fov, channels=series_channels, file_pattern=file_pattern)
+            series_reg_img = _get_reg_img(
+                img, reg_bit, reg_color, series_channels,
+                reg_z_slice=reg_z_slice, z_drift=z_drift
+            )
+            drift = ski.registration.phase_cross_correlation(reg_img, series_reg_img)[0].astype(int)
+            logger.info(f"Series drift: {drift}")
+            img = np.roll(img, shift=(-drift[0], -drift[1]), axis=(-2, -1)) # apply drift correction
+            common_img.append(img.max(axis=0))  # (Z, Y, X)
+        common_img = np.stack(common_img).max(axis=0)  # (Z, Y, X)
     del ref_img
-    if common_img.ndim > 3:
-        common_img = common_img.max(axis=0)
     logger.info(f"Applying {filter_name} filter")
     common_img = ski.util.apply_parallel(
         filter, common_img, chunks=(1, common_img.shape[1], common_img.shape[2]), dtype=common_img.dtype, channel_axis=0
@@ -222,9 +223,7 @@ def detect_spots(
         num_sigma=4,
     )
     logger.info(f"Detected {positions.shape[0]} spots")
-    if common_drift is not None:
-        positions[:, :3] -= common_drift[np.newaxis, :]  # make sure spots are in ref series coordinates
-    spots = pd.DataFrame(positions.astype(int), columns=["z", "y", "x"])
+    spots = pd.DataFrame(positions[:, :3].astype(int), columns=["z", "y", "x"])
     max_z = common_img.shape[0] - 1
     spots["z"] = (spots["z"] - 1).clip(0, max_z - 2)
     del common_img
