@@ -132,6 +132,9 @@ def aggregate_polygons(
     )
     with mp.Pool(mp.cpu_count()) as pool:
         polygons = list(tqdm(pool.imap_unordered(parallel_func, fovs), total=len(fovs)))
+    # remove empty:
+    polygons = [p for p in polygons if len(p) > 0]
+    # concat
     polygons = pd.concat(polygons)
     polygons["cell"] = (polygons["fov"] * 1e5 + polygons[cell_column]).rank(method="dense").astype(int) + 1
     logger.info(f"Loaded {len(polygons[cell_column].unique())} polygons.")

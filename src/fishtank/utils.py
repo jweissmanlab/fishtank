@@ -63,8 +63,13 @@ def tile_polygons(
     centers = polygons.groupby(cell).first().geometry.centroid
     polygons["center"] = polygons[cell].map(centers)
     total_bounds = polygons.total_bounds
-    x_splits = np.append(np.arange(total_bounds[0], total_bounds[2], tile_shape[0]), total_bounds[2])
-    y_splits = np.append(np.arange(total_bounds[1], total_bounds[3], tile_shape[1]), total_bounds[3])
+    try:
+        x_splits = np.append(np.arange(total_bounds[0], total_bounds[2], tile_shape[0]), total_bounds[2])
+        y_splits = np.append(np.arange(total_bounds[1], total_bounds[3], tile_shape[1]), total_bounds[3])
+    except:
+        print(total_bounds)
+        print(tile_shape)
+        raise ValueError(f"Error in x_splits, total_bounds: {total_bounds}, tile_shape: {tile_shape}")
     tiles = []
     bounds = []
     for x in range(len(x_splits) - 1):

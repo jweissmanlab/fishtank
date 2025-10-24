@@ -151,7 +151,15 @@ def fix_overlaps(
     logger.info("Splitting polygons into edge and interior sets.")
     edge_polygons, interior_polygons = _get_edge_polygons(polygons, fov=fov, cell=cell, buffer=diameter / 2)
     logger.info("Splitting edge polygons into tiles.")
-    edge_tiles, _ = tile_polygons(edge_polygons, tile_shape=tile_shape, buffer=diameter, cell=cell)
+    # if theres no edge polygons just return the polygons
+    try:
+        edge_tiles, _ = tile_polygons(edge_polygons, tile_shape=tile_shape, buffer=diameter, cell=cell)
+    except:
+        logger.error("Error in tile_polygons. Please check the input polygons.")
+        print(edge_polygons)
+        print(polygons)
+        raise ValueError(f"Error in tile_polygons, edge_polygons: {edge_polygons},length: {len(edge_polygons)}, interior_polygons length: {len(interior_polygons)}")
+
     logger.info("Fixing overlapping polygons in parallel.")
     parallel_func = partial(_fix_overlaps, min_ioa=min_ioa, cell=cell, z=z, fov=fov, tolerance=tolerance)
     with mp.Pool(mp.cpu_count()) as pool:

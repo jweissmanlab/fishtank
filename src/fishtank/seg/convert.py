@@ -89,6 +89,9 @@ def polygons_to_masks(
     # Convert polygons to masks
     for l in range(shape[0]):
         layer_polygons = polygons[polygons[z] == l]
+        if layer_polygons.empty:
+            masks.append(np.zeros(shape[1:], dtype=np.uint16))
+            continue
         mask = rasterize(
             list(zip(layer_polygons["geometry"], layer_polygons[id], strict=False)),
             out_shape=shape[1:],
