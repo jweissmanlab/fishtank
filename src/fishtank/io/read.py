@@ -336,10 +336,7 @@ def read_fov(
             attrs.append(attr)
     # Reshape images
     if len(imgs) > 1:
-        if len(imgs[0].shape) == 2:
-            imgs = np.stack(imgs, axis=0)
-        else:
-            imgs = np.concatenate(imgs, axis=0)
+        imgs = np.stack(imgs, axis=0)
     else:
         imgs = imgs[0]
     # Update attributes
