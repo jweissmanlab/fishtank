@@ -28,7 +28,7 @@ def determine_fov_format(
         a file pattern with the correct fov format.
     """
     path = Path(path)
-    for format in ["{fov:01d}", "{fov:02d}", "{fov:03d}"]:
+    for format in ["{fov:01d}", "{fov:02d}", "{fov:03d}", "{fov:04d}"]:
         if format in file_pattern:
             return file_pattern
         if os.path.exists(path / file_pattern.replace("{fov}", format).format(fov=fov, series=series)):
