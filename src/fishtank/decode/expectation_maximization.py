@@ -66,6 +66,7 @@ def expectation_maximization(
     bit_intensity = bit_intensity / np.mean(bit_intensity)
     bit_snr = np.ones_like(bit_intensity) * 10
     spot_intensity = np.percentile(intensities / bit_intensity, 95, axis=1, keepdims=True)
+    spot_intensity[spot_intensity == 0] = 1
     corrected = intensities / np.dot(spot_intensity, bit_intensity)
     # EM Loop
     for i in range(iter):

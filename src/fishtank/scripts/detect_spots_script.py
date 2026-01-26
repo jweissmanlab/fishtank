@@ -9,7 +9,7 @@ import skimage as ski
 
 import fishtank as ft
 
-from ._utils import parse_bool, parse_dict, parse_list, parse_path
+from ._utils import parse_bool, parse_dict, parse_list, parse_path, parse_int_or_str
 
 
 class FOVLoggerAdapter(logging.LoggerAdapter):  # noqa: D101
@@ -29,7 +29,7 @@ def _get_filter(name, filter_args):
     else:
         raise ValueError(f"Filter {name} not found in fishtank.filters or skimage.filters")
 
-def _get_reg_img(img, reg_bit, reg_color, channels, reg_z_slice=None, z_drift=False):
+def _get_reg_img(img, reg_bit, reg_color, channels, reg_z_slice=None, z_drift=False, clip_pct=None):
     """Return the registration image and initialize the drift vector."""
     if reg_color is not None:
         reg_channel = channels.query("color == @reg_color")
@@ -45,6 +45,8 @@ def _get_reg_img(img, reg_bit, reg_color, channels, reg_z_slice=None, z_drift=Fa
         reg_img = reg_img.max(axis=0)
     else:
         reg_img = reg_img.max(axis=(0, 1))
+    if clip_pct is not None:
+        reg_img = np.minimum(reg_img / np.percentile(reg_img, clip_pct, axis=(-2, -1), keepdims=True), 1)
     return reg_img
 
 
@@ -53,7 +55,7 @@ def get_parser():
     parser = argparse.ArgumentParser(add_help=False)
     parser.add_argument("-i", "--input", type=parse_path, required=True, help="Image file directory")
     parser.add_argument("-f", "--fov", type=int, required=True, help="Field of view to process")
-    parser.add_argument("--ref_series", type=str, required=True, help="Reference series for drift correction")
+    parser.add_argument("--ref_series", type=parse_int_or_str, required=True, help="Reference series for drift correction")
     parser.add_argument("--common_bits", type=parse_list, required=True, help="Common bits used for spot detection")
     parser.add_argument("--reg_bit", type=str, default="beads", help="Bit used for series registration")
     parser.add_argument("-o", "--output", type=parse_path, default="spots", help="Output file path")
@@ -93,6 +95,9 @@ def get_parser():
     parser.add_argument(
         "--reg_z_slice", type=int, default=None, help="Z slice to use for registration (overrides z_drift if provided)"
     )
+    parser.add_argument(
+        "--reg_clip_pct", type=float, default=None, help="Percentile to clip registration image intensities"
+    )
     parser.set_defaults(func=detect_spots)
     return parser
 
@@ -100,7 +105,7 @@ def get_parser():
 def detect_spots(
     input: str | Path,
     fov: int,
-    ref_series: str,
+    ref_series: str | int,
     common_bits: list[str],
     reg_bit: str = "beads",
     output: str | Path = "spots",
@@ -118,6 +123,7 @@ def detect_spots(
     reg_min_intensity: int = 1000,
     reg_color: int | None = None,
     reg_z_slice: int | None = None,
+    reg_clip_pct: float | None = None,
     **kwargs,
 ):
     """Detect spots in an image and quantify their intensity.
@@ -166,6 +172,8 @@ def detect_spots(
         Color name for registration channel (overrides reg_bit if provided).
     reg_z_slice
         Z slice to use for registration (overrides z_drift if provided).
+    reg_clip_pct
+        Percentile to clip registration image intensities.
     """
     # Setup
     logger = logging.getLogger("detect_spots")
@@ -184,7 +192,7 @@ def detect_spots(
     ref_img, attr = ft.io.read_fov(input, fov, channels=ref_channels, file_pattern=file_pattern)
     reg_img = _get_reg_img(
         ref_img, reg_bit, reg_color, ref_channels,
-        reg_z_slice=reg_z_slice, z_drift=z_drift
+        reg_z_slice=reg_z_slice, z_drift=z_drift, clip_pct=reg_clip_pct
     )
     current_drift = np.zeros(3, dtype=int) if z_drift else np.zeros(2, dtype=int)
     # Get common image
@@ -200,11 +208,11 @@ def detect_spots(
             img, _ = ft.io.read_fov(input, fov, channels=series_channels, file_pattern=file_pattern)
             series_reg_img = _get_reg_img(
                 img, reg_bit, reg_color, series_channels,
-                reg_z_slice=reg_z_slice, z_drift=z_drift
+                reg_z_slice=reg_z_slice, z_drift=z_drift, clip_pct=reg_clip_pct
             )
             drift = ski.registration.phase_cross_correlation(reg_img, series_reg_img)[0].astype(int)
             logger.info(f"Series drift: {drift}")
-            img = np.roll(img, shift=(-drift[0], -drift[1]), axis=(-2, -1)) # apply drift correction
+            img = np.roll(img, shift=drift[:2], axis=(-2, -1))# apply drift correction
             common_img.append(img.max(axis=0))  # (Z, Y, X)
         common_img = np.stack(common_img).max(axis=0)  # (Z, Y, X)
     del ref_img
@@ -239,7 +247,7 @@ def detect_spots(
         # Get the drift
         series_reg_img = _get_reg_img(
             img, reg_bit, reg_color, series_channels,
-            reg_z_slice=reg_z_slice, z_drift=z_drift
+            reg_z_slice=reg_z_slice, z_drift=z_drift, clip_pct=reg_clip_pct
         )
         drift = ski.registration.phase_cross_correlation(reg_img, series_reg_img)[0].astype(int)
         if z_drift:

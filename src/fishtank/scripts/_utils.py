@@ -53,3 +53,9 @@ def parse_rotation(arg: str) -> float:
         radians = math.atan2(matrix[1, 0], matrix[0, 0])
         return math.degrees(radians)
     return float(arg)
+
+def parse_int_or_str(value):
+    try:
+        return int(value)
+    except ValueError:
+        return value
