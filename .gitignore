@@ -1,6 +1,7 @@
 # Temp files
 .DS_Store
 *~
+._*
 buck-out/
 
 # IDEs
@@ -32,3 +33,4 @@ __pycache__/
 
 # configuration
 .config.ini
+

@@ -86,6 +86,7 @@ def get_parser():
         help="Series to include in intensity quantification. None for all series",
     )
     parser.add_argument("--z_drift", type=parse_bool, default=False, help="Do drift correction in z")
+    parser.add_argument("--max_drift", type=int, default=100, help="Maximum allowed drift between series")
     parser.add_argument(
         "--reg_min_intensity", type=int, default=1000, help="Minimum intensity for registration channel to consider drift valid"
     )
@@ -120,6 +121,7 @@ def detect_spots(
     exclude_bits: list[str] = ["DAPI", "empty"],  # noqa: B006
     include_series: list[str] | None = None,
     z_drift: bool = False,
+    max_drift: int = 100,
     reg_min_intensity: int = 1000,
     reg_color: int | None = None,
     reg_z_slice: int | None = None,
@@ -166,6 +168,8 @@ def detect_spots(
         Series to include in intensity quantification.
     z_drift
         Do drift correction in z.
+    max_drift
+        Maximum allowed drift between series.
     reg_min_intensity
         Minimum intensity for registration channel to consider drift valid.
     reg_color
@@ -254,7 +258,7 @@ def detect_spots(
             if np.abs(drift[0] - current_drift[0]) > 3:
                 logger.warning(f"Large z drift detected: {drift[0]}. Using previous z drift: {current_drift[0]}")
                 drift[0] = current_drift[0]
-        if np.sum(np.abs(drift - current_drift)) > 100:
+        if np.sum(np.abs(drift - current_drift)) > max_drift:
             logger.warning(f"Large drift detected: {drift}. Using previous drift: {current_drift}")
             drift = current_drift
         if channel_max[series_channels.bit == reg_bit] < reg_min_intensity:
