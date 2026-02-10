@@ -4,7 +4,7 @@ requires = [ "hatchling" ]
 
 [project]
 name = "fishtank"
-version = "0.2.1"
+version = "0.2.2"
 description = "A collection of tools for processing MERFISH data"
 readme = "README.md"
 license = { file = "LICENSE" }

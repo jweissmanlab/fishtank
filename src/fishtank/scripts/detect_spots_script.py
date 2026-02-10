@@ -50,6 +50,22 @@ def _get_reg_img(img, reg_bit, reg_color, channels, reg_z_slice=None, z_drift=Fa
     return reg_img
 
 
+def _load_reg_img(input, fov, series, reg_bit, reg_color, channels, file_pattern, reg_z_slice=None, z_drift=False, clip_pct=None):
+    if reg_color is not None:
+        reg_channel = channels.query("color == @reg_color & series == @series")
+    else:
+        reg_channel = channels.query("bit == @reg_bit & series == @series")
+    if reg_channel.empty:
+        raise ValueError(f"Registration color {reg_color} not found in color usage")
+    reg_img = ft.io.read_fov(input, fov, channels=channels.query("series == @series & bit == @reg_bit"),
+                             z_slices=reg_z_slice,file_pattern=file_pattern)[0]
+    if reg_z_slice is None and not z_drift:
+        reg_img = reg_img.max(axis=0)
+    if clip_pct is not None:
+        reg_img = np.minimum(reg_img / np.percentile(reg_img, clip_pct, axis=(-2, -1), keepdims=True), 1)
+    return reg_img
+
+
 def get_parser():
     """Get parser for detect_spots script"""
     parser = argparse.ArgumentParser(add_help=False)
@@ -99,6 +115,9 @@ def get_parser():
     parser.add_argument(
         "--reg_clip_pct", type=float, default=None, help="Percentile to clip registration image intensities"
     )
+    parser.add_argument(
+        "--scale_factor", type=float, default=None, help="Factor to convert pixel coordinates to microns. If None, will use micron_per_pixel from image metadata"
+    )
     parser.set_defaults(func=detect_spots)
     return parser
 
@@ -126,6 +145,7 @@ def detect_spots(
     reg_color: int | None = None,
     reg_z_slice: int | None = None,
     reg_clip_pct: float | None = None,
+    scale_factor: float | None = None,
     **kwargs,
 ):
     """Detect spots in an image and quantify their intensity.
@@ -178,6 +198,8 @@ def detect_spots(
         Z slice to use for registration (overrides z_drift if provided).
     reg_clip_pct
         Percentile to clip registration image intensities.
+    scale_factor
+        Factor to convert pixel coordinates to microns. If None, will use micron_per_pixel from image metadata.
     """
     # Setup
     logger = logging.getLogger("detect_spots")
@@ -192,12 +214,9 @@ def detect_spots(
     filter = _get_filter(filter, filter_args)
     # Get reference image
     logger.info(f"Loading reference series {ref_series}")
-    ref_channels = channels.query("series == @ref_series")
-    ref_img, attr = ft.io.read_fov(input, fov, channels=ref_channels, file_pattern=file_pattern)
-    reg_img = _get_reg_img(
-        ref_img, reg_bit, reg_color, ref_channels,
-        reg_z_slice=reg_z_slice, z_drift=z_drift, clip_pct=reg_clip_pct
-    )
+    ref_channels = channels.query("series == @ref_series & bit not in @reg_bit")
+    ref_img, ref_attr = ft.io.read_fov(input, fov, channels=ref_channels, file_pattern=file_pattern)
+    reg_img = _load_reg_img(input, fov, ref_series, reg_bit, reg_color, channels, file_pattern, reg_z_slice, z_drift, reg_clip_pct)
     current_drift = np.zeros(3, dtype=int) if z_drift else np.zeros(2, dtype=int)
     # Get common image
     if len(ref_channels.query("bit in @common_bits")) == len(common_bits):
@@ -210,10 +229,7 @@ def detect_spots(
         for series, series_channels in channels.query("bit in @common_bits").groupby("series", sort=False):
             logger.info(f"Loading series {series}")
             img, _ = ft.io.read_fov(input, fov, channels=series_channels, file_pattern=file_pattern)
-            series_reg_img = _get_reg_img(
-                img, reg_bit, reg_color, series_channels,
-                reg_z_slice=reg_z_slice, z_drift=z_drift, clip_pct=reg_clip_pct
-            )
+            series_reg_img = _load_reg_img(input, fov, series, reg_bit, reg_color, channels, file_pattern, reg_z_slice, z_drift, reg_clip_pct)
             drift = ski.registration.phase_cross_correlation(reg_img, series_reg_img)[0].astype(int)
             logger.info(f"Series drift: {drift}")
             img = np.roll(img, shift=drift[:2], axis=(-2, -1))# apply drift correction
@@ -241,18 +257,17 @@ def detect_spots(
     del common_img
     # Intensity quantification
     logger.info("Quantifying spot intensities")
-    filtered_channels = channels.query("bit not in @exclude_bits").copy()
+    filtered_channels = channels.query("bit not in @exclude_bits and bit not in @reg_bit").copy()
     for series, series_channels in filtered_channels.groupby("series", sort=False):
         # Read series image
         logger.info(f"Loading series {series}")
-        img, _ = ft.io.read_fov(input, fov, channels=series_channels, file_pattern=file_pattern)
+        img, series_attr = ft.io.read_fov(input, fov, channels=series_channels, file_pattern=file_pattern)
+        if img.ndim == 3:  # (Z, Y, X)
+            img = img[np.newaxis, ...]
         channel_max = img.max(axis=(1, 2, 3))
         filtered_channels.loc[filtered_channels.series == series, "max_intensity"] = channel_max
         # Get the drift
-        series_reg_img = _get_reg_img(
-            img, reg_bit, reg_color, series_channels,
-            reg_z_slice=reg_z_slice, z_drift=z_drift, clip_pct=reg_clip_pct
-        )
+        series_reg_img = _load_reg_img(input, fov, series, reg_bit, reg_color, channels, file_pattern, reg_z_slice, z_drift, reg_clip_pct)
         drift = ski.registration.phase_cross_correlation(reg_img, series_reg_img)[0].astype(int)
         if z_drift:
             if np.abs(drift[0] - current_drift[0]) > 3:
@@ -261,9 +276,9 @@ def detect_spots(
         if np.sum(np.abs(drift - current_drift)) > max_drift:
             logger.warning(f"Large drift detected: {drift}. Using previous drift: {current_drift}")
             drift = current_drift
-        if channel_max[series_channels.bit == reg_bit] < reg_min_intensity:
+        if np.max(series_reg_img) < reg_min_intensity:
             logger.warning(
-                f"Low intensity for registration channel: {channel_max[series_channels.bit == reg_bit]}. Using previous drift: {current_drift}"
+                f"Low intensity for registration channel: {np.max(series_reg_img)}. Using previous drift: {current_drift}"
             )
             drift = current_drift
         current_drift = drift
@@ -272,27 +287,35 @@ def detect_spots(
         filtered_channels.loc[filtered_channels.series == series, "y_drift"] = drift[-2]
         if z_drift:
             filtered_channels.loc[filtered_channels.series == series, "z_drift"] = drift[0]
-        # Remove the registration channel
-        if reg_color is None:
-            img = img[series_channels.bit != reg_bit]
-            series_channels = series_channels[series_channels.bit != reg_bit]
         # Filter the image
         logger.info(f"Applying {filter_name} filter")
         for i in range(img.shape[0]):
             img[i] = ski.util.apply_parallel(
                 filter, img[i], chunks=(1, img.shape[-2], img.shape[-1]), dtype=img.dtype, channel_axis=0
             )
+        # Check step size in z
+        ref_step = ref_attr["z_offsets"][1] - ref_attr["z_offsets"][0]
+        series_step = series_attr["z_offsets"][1] - series_attr["z_offsets"][0]
+        if ref_step != series_step:
+            step_ratio = ref_step / series_step
+            logger.warning(f"Reference z step ({ref_step} microns) is different from series z step ({series_step} microns)."
+            f" Z coordinates will be scaled by step ratio {step_ratio:.2f} to match reference step.")
+            z = np.rint(spots.z * step_ratio).astype(int)
+        else:
+            z = (spots.z if not z_drift else spots.z - drift[0])
+        z = np.clip(z,0, max_z)
         # Get spot intensities
         logger.info("Getting spot intensities")
-        z = (spots.z if not z_drift else spots.z - drift[0]).clip(0, max_z)
         spots[series_channels.bit] = ft.decode.spot_intensities(
             img, spots.x - drift[-1], spots.y - drift[-2], z, spot_radius
         )
     # Clean up
     spots = spots.dropna().copy()
-    spots["global_x"] = spots["x"] * attr["micron_per_pixel"] + attr["stage_position"][0]
-    spots["global_y"] = spots["y"] * attr["micron_per_pixel"] + attr["stage_position"][1]
-    spots["global_z"] = spots["z"].apply(lambda x: attr["z_offsets"][x])
+    if scale_factor is not None:
+        ref_attr["micron_per_pixel"] = scale_factor
+    spots["global_x"] = spots["x"] * ref_attr["micron_per_pixel"] + ref_attr["stage_position"][0]
+    spots["global_y"] = spots["y"] * ref_attr["micron_per_pixel"] + ref_attr["stage_position"][1]
+    spots["global_z"] = spots["z"].apply(lambda x: ref_attr["z_offsets"][x])
     spots["spot"] = spots.reset_index().index.values
     spots["fov"] = fov
     col_order = ["fov", "spot", "x", "y", "z", "global_x", "global_y", "global_z"]
