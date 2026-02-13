@@ -214,7 +214,7 @@ def detect_spots(
     filter = _get_filter(filter, filter_args)
     # Get reference image
     logger.info(f"Loading reference series {ref_series}")
-    ref_channels = channels.query("series == @ref_series & bit not in @reg_bit")
+    ref_channels = channels.query("series == @ref_series & bit not in @reg_bit and bit not in @exclude_bits")
     ref_img, ref_attr = ft.io.read_fov(input, fov, channels=ref_channels, file_pattern=file_pattern)
     reg_img = _load_reg_img(input, fov, ref_series, reg_bit, reg_color, channels, file_pattern, reg_z_slice, z_drift, reg_clip_pct)
     current_drift = np.zeros(3, dtype=int) if z_drift else np.zeros(2, dtype=int)

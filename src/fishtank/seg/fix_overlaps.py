@@ -12,13 +12,46 @@ from tqdm import tqdm
 from fishtank.utils import tile_polygons
 
 
+def _get_edge_region(fov_bounds, fov: str):
+    """Get edge overlap between fovs"""
+    sidx = fov_bounds.sindex
+    left, right = sidx.query(fov_bounds.geometry, predicate="intersects")
+    # Drop self-pairs
+    m = left != right
+    left = left[m]
+    right = right[m]
+    # Match query(f"{fov}_1 != {fov}_2")
+    fovs = fov_bounds[fov].to_numpy()
+    m = fovs[left] != fovs[right]
+    left = left[m]
+    right = right[m]
+    if left.size == 0:
+        return shp.GeometryCollection()
+    inter = shp.intersection(
+        fov_bounds.geometry.values[left],
+        fov_bounds.geometry.values[right],
+    )
+    # keep ONLY Polygon / MultiPolygon intersections (drop lines/points from "touching")
+    type_id = shp.get_type_id(inter)
+    m = (type_id == 3) | (type_id == 6)  # Polygon=3, MultiPolygon=6
+    inter = inter[m]
+    if inter.size == 0:
+        return shp.GeometryCollection()
+    return shp.union_all(inter)
+
+
 def _get_edge_polygons(polygons, fov="fov", cell="cell", buffer=-10):
     """Split the polygons into edge and interior sets."""
+    logger = logging.getLogger("fix_overlaps")
+    logger.setLevel(logging.INFO)
+    logger.info("Getting FOV bounds")
     fov_bounds = (
         polygons.groupby(fov).geometry.apply(lambda x: shp.geometry.box(*x.total_bounds)).reset_index(name="geometry")
     )
-    edge_region = fov_bounds.overlay(fov_bounds, how="intersection").query(f"{fov}_1 != {fov}_2").union_all()
-    polygons_2d = polygons.dissolve("cell").reset_index()
+    logger.info("Getting edge region")
+    edge_region = _get_edge_region(fov_bounds, fov)
+    logger.info("Splitting polygons")
+    polygons_2d = polygons.sort_values("area",ascending=False).drop_duplicates("cell",keep="first")
     edge_cells = polygons_2d.loc[polygons_2d.geometry.intersects(edge_region), cell]
     edge_polygons = polygons[polygons[cell].isin(edge_cells)].copy()
     interior_polygons = polygons[~polygons[cell].isin(edge_cells)].copy()
