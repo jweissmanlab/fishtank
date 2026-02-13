@@ -30,7 +30,6 @@ dependencies = [
   "numpy",
   "pandas",
   "pathlib",
-  "pygeos",
   "rasterio",
   "scikit-image",
   "scikit-learn",
