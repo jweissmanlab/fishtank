@@ -4,7 +4,7 @@ requires = [ "hatchling" ]
 
 [project]
 name = "fishtank"
-version = "0.2.3"
+version = "0.3.0"
 description = "A collection of tools for processing MERFISH data"
 readme = "README.md"
 license = { file = "LICENSE" }
@@ -23,9 +23,9 @@ classifiers = [
   "Programming Language :: Python :: 3.13",
 ]
 dependencies = [
-  "cellpose>=4.0.0",
+  "cellpose>=4",
   "dask",
-  "geopandas>=1.1.0",
+  "geopandas>=1.1",
   "matplotlib",
   "numpy",
   "pandas",

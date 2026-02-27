@@ -51,7 +51,9 @@ def _get_edge_polygons(polygons, fov="fov", cell="cell", buffer=-10):
     logger.info("Getting edge region")
     edge_region = _get_edge_region(fov_bounds, fov)
     logger.info("Splitting polygons")
-    polygons_2d = polygons.sort_values("area",ascending=False).drop_duplicates("cell",keep="first")
+    if "area" not in polygons.columns:
+        polygons["area"] = polygons.geometry.area
+    polygons_2d = polygons.sort_values("area", ascending=False).drop_duplicates("cell", keep="first")
     edge_cells = polygons_2d.loc[polygons_2d.geometry.intersects(edge_region), cell]
     edge_polygons = polygons[polygons[cell].isin(edge_cells)].copy()
     interior_polygons = polygons[~polygons[cell].isin(edge_cells)].copy()

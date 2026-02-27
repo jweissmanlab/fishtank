@@ -1,4 +1,5 @@
 import argparse
+import json
 import logging
 import multiprocessing as mp
 import warnings
@@ -10,6 +11,7 @@ import matplotlib.pyplot as plt
 import numpy as np
 import shapely as shp
 import skimage as ski
+import tifffile
 from tqdm import tqdm
 
 import fishtank as ft
@@ -61,13 +63,30 @@ def _compute_optical_flow(tile, attachment=15):
     return (ski.registration.optical_flow_tvl1(tile[0], tile[1], attachment=attachment), positions)
 
 
+def _read_mosaic_tiff_with_bounds(path: str | Path, bounds_tag: int = 65000):
+    with tifffile.TiffFile(path) as tif:
+        page = tif.pages[0]
+        img = page.asarray()
+        if page.description:
+            try:
+                meta = json.loads(page.description)
+                bounds = np.asarray(meta["custom_metadata"]["bounds"], dtype=np.float64)
+            except (json.JSONDecodeError, KeyError, TypeError):
+                pass
+
+    if bounds is None:
+        raise ValueError(f"No bounds metadata found in {path}")
+
+    return img, bounds
+
+
 def get_parser():
     """Get parser for align_experiments script"""
     parser = argparse.ArgumentParser(add_help=False)
-    parser.add_argument("-r", "--ref", type=parse_path, required=True, help="Reference image directory")
-    parser.add_argument("-m", "--moving", type=parse_path, required=True, help="Moving image directory")
-    parser.add_argument("--ref_series", type=str, required=True, help="Reference series to use for alignment")
-    parser.add_argument("--moving_series", type=str, required=True, help="Moving series to use for alignment")
+    parser.add_argument("-r", "--ref", type=parse_path, default=None, help="Reference image directory")
+    parser.add_argument("-m", "--moving", type=parse_path, default=None, help="Moving image directory")
+    parser.add_argument("--ref_series", type=str, default=None, help="Reference series to use for alignment")
+    parser.add_argument("--moving_series", type=str, default=None, help="Moving series to use for alignment")
     parser.add_argument("-o", "--output", type=parse_path, default="alignment.json", help="Output file path")
     parser.add_argument("--color", type=int, default=405, help="Color channel to use for alignment")
     parser.add_argument("--z_offset", type=int, default=-3, help="Z offset for alignment")
@@ -84,6 +103,9 @@ def get_parser():
         default=None,
         help="Rotation matrix (.npy) or angle (float) to apply to moving images",
     )
+    parser.add_argument("--ref_mosaic", type=parse_path, default=None, help="Path to precomputed reference mosaic TIFF")
+    parser.add_argument("--moving_mosaic", type=parse_path, default=None, help="Path to precomputed moving mosaic TIFF")
+    parser.add_argument("--scale_factor", type=float, default=None, help="Scale factor to apply to moving images")
     parser.set_defaults(func=align_experiments)
     return parser
 
@@ -102,6 +124,9 @@ def align_experiments(
     attachment: float = 15,
     tile_size: int = 100,
     rotation: float = None,
+    ref_mosaic: str | Path = None,
+    moving_mosaic: str | Path = None,
+    scale_factor: float | None = None,
     **kwargs,
 ):
     """Align experiments using optical flow.
@@ -136,16 +161,36 @@ def align_experiments(
         Size of shift tiles in pixels.
     rotation
         Rotation matrix (.npy) or angle (float) of moving images.
+    ref_mosaic
+        Path to precomputed reference mosaic TIFF. If provided, ref, ref_series, file_pattern
+        and z_offset will be ignored.
+    moving_mosaic
+        Path to precomputed moving mosaic TIFF. If provided, moving, moving_series, file_pattern
+        and z_offset will be ignored.
+    scale_factor
+        Scale factor in micron per pixel
     """
     # Setup
     logger = logging.getLogger("align_experiments")
     logger.info(f"fishtank version: {ft.__version__}")
-    ref_z_slice, ref_resolution = _get_slice_and_resolution(ref, ref_series, file_pattern, z_offset)
-    ref_resolution = downsample * ref_resolution
-    logger.info(f"Reference z-slice: {ref_z_slice}")
-    moving_z_slice, moving_resolution = _get_slice_and_resolution(moving, moving_series, file_pattern, z_offset)
-    moving_resolution = downsample * moving_resolution
-    logger.info(f"Moving z-slice: {moving_z_slice}")
+    if ref_mosaic is not None:
+        if moving_mosaic is None:
+            raise ValueError("If ref_mosaic is provided, moving_mosaic must also be provided.")
+        if scale_factor is None:
+            raise ValueError("If mosaics are provided, scale_factor must also be provided.")
+        ref_resolution = scale_factor * downsample
+        moving_resolution = scale_factor * downsample
+    else:
+        if moving_mosaic is not None:
+            raise ValueError("If moving_mosaic is provided, ref_mosaic must also be provided.")
+        if ref is None or moving is None:
+            raise ValueError("If mosaics are not provided, both ref and moving directories must be provided.")
+        ref_z_slice, ref_resolution = _get_slice_and_resolution(ref, ref_series, file_pattern, z_offset)
+        ref_resolution = downsample * ref_resolution
+        logger.info(f"Reference z-slice: {ref_z_slice}")
+        moving_z_slice, moving_resolution = _get_slice_and_resolution(moving, moving_series, file_pattern, z_offset)
+        moving_resolution = downsample * moving_resolution
+        logger.info(f"Moving z-slice: {moving_z_slice}")
     # Load mosaics
     _read_mosaic = partial(
         ft.io.read_mosaic,
@@ -155,13 +200,23 @@ def align_experiments(
         filter=ft.filters.unsharp_mask,
         filter_args={"sigma": filter_sigma},
     )
-    logger.info("Loading reference mosaic.")
-    ref_mosaic, ref_bounds = _read_mosaic(ref, z_slices=ref_z_slice, series=ref_series)
+    if ref_mosaic is not None:
+        logger.info(f"Loading reference mosaic TIFF: {ref_mosaic}")
+        ref_mosaic, ref_bounds = _read_mosaic_tiff_with_bounds(ref_mosaic)
+    else:
+        logger.info("Loading reference mosaic (tile-based).")
+        ref_mosaic, ref_bounds = _read_mosaic(ref, z_slices=ref_z_slice, series=ref_series)
+
+    if moving_mosaic is not None:
+        logger.info(f"Loading moving mosaic TIFF: {moving_mosaic}")
+        moving_mosaic, moving_bounds = _read_mosaic_tiff_with_bounds(moving_mosaic)
+    else:
+        logger.info("Loading moving mosaic (tile-based).")
+        moving_mosaic, moving_bounds = _read_mosaic(moving, z_slices=moving_z_slice, series=moving_series)
+    # Rescale intensities
     ref_mosaic = ski.exposure.rescale_intensity(
         ref_mosaic, in_range=(0, np.percentile(ref_mosaic, 98)), out_range=(0, 1)
     )
-    logger.info("Loading moving mosaic.")
-    moving_mosaic, moving_bounds = _read_mosaic(moving, z_slices=moving_z_slice, series=moving_series)
     moving_mosaic = ski.exposure.rescale_intensity(
         moving_mosaic, in_range=(0, np.percentile(moving_mosaic, 98)), out_range=(0, 1)
     )

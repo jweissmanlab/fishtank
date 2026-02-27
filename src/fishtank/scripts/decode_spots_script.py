@@ -123,6 +123,7 @@ def decode_spots(
         spots = pd.concat(spots)
     else:
         spots = pd.read_csv(input)
+    logger.info(f"Loaded {len(fovs)} fovs with a total of {len(spots)} spots")
     # Load color usage
     if "{input}" in color_usage:
         color_usage = color_usage.format(input=input)

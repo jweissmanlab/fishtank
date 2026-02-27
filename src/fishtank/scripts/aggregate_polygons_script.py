@@ -7,6 +7,8 @@ from pathlib import Path
 
 import geopandas as gpd
 import pandas as pd
+import shapely
+from shapely.errors import GEOSException
 from tqdm import tqdm
 
 import fishtank as ft
@@ -24,7 +26,7 @@ def _load_fov_polygons(
     tolerance=0.5,
     flip_horizontal=False,
     flip_vertical=False,
-    img_size = (2304, 2304)
+    img_size=(2304, 2304),
 ):
     """Load and rescale polygons for a single FOV."""
     path = Path(path)
@@ -34,9 +36,7 @@ def _load_fov_polygons(
         return None
     if flip_horizontal or flip_vertical:
         polygons.geometry = polygons.geometry.scale(
-            xfact=-1 if flip_horizontal else 1,
-            yfact=-1 if flip_vertical else 1,
-            origin=(0, 0)
+            xfact=-1 if flip_horizontal else 1, yfact=-1 if flip_vertical else 1, origin=(0, 0)
         ).translate(xoff=img_size[0] if flip_horizontal else 0, yoff=img_size[1] if flip_vertical else 0)
     if scale_factor != 1:
         polygons.geometry = polygons.geometry.affine_transform([scale_factor, 0, 0, scale_factor, 0, 0])
@@ -47,6 +47,59 @@ def _load_fov_polygons(
         )
     polygons.geometry = polygons.geometry.simplify(tolerance).make_valid()
     return polygons
+
+
+def _safe_union_cell(g: gpd.GeoDataFrame):
+    """Perform a union of the geometries in a GeoDataFrame, skipping any that cause GEOS exceptions."""
+    geoms = [geom for geom in g.geometry if geom is not None and not geom.is_empty]
+    if not geoms:
+        return None
+    try:
+        return shapely.union_all(geoms)
+    except GEOSException:
+        pass
+    acc = None
+    for geom in geoms:
+        try:
+            acc = geom if acc is None else shapely.union(acc, geom)
+        except GEOSException:
+            # skip the offending polygon
+            continue
+    return acc
+
+
+def _dissolve_skip_bad_polygons(
+    polygons: gpd.GeoDataFrame,
+    by: str = "cell",
+    keep_cols: tuple[str, ...] = ("fov",),
+) -> gpd.GeoDataFrame:
+    """Try geopandas dissolve; fall back to a per-group safe union that skips only the polygons that trigger GEOS errors."""
+    if by not in polygons.columns:
+        raise KeyError(f"'{by}' not found in columns: {list(polygons.columns)}")
+    for c in keep_cols:
+        if c not in polygons.columns:
+            raise KeyError(f"'{c}' not found in columns: {list(polygons.columns)}")
+    # --- Fast path: geopandas dissolve ---
+    try:
+        dissolved = polygons.dissolve(by=by).reset_index()
+        cols = [by, *keep_cols, "geometry"]
+        return dissolved.loc[:, [c for c in cols if c in dissolved.columns]]
+    except GEOSException:
+        # Any GEOS/topology-related failure lands here
+        pass
+    # --- Fallback: per-group safe union, skipping offending polygons ---
+    logger = logging.getLogger("aggregate_polygons")
+    logger.warning("Dissolve failed, falling back to slow per-group union that skips bad polygons")
+    rows: list[dict] = []
+    for key, g in polygons.groupby(by, sort=False):
+        geom = _safe_union_cell(g)
+        if geom is None or geom.is_empty:
+            continue
+        row = {by: key, "geometry": geom}
+        for c in keep_cols:
+            row[c] = g[c].iloc[0]
+        rows.append(row)
+    return gpd.GeoDataFrame(rows, geometry="geometry", crs=polygons.crs)
 
 
 def get_parser():
@@ -69,12 +122,8 @@ def get_parser():
     parser.add_argument("--scale_factor", type=float, default=0.107, help="Factor for converting pixels to microns")
     parser.add_argument("--tolerance", type=float, default=0.5, help="Tolerance from polygon simplification (microns)")
     parser.add_argument("--save_union", type=bool, default=False, help="Save polygons flattened (unioned) to 2D")
-    parser.add_argument(
-        "--flip_horizontal", type=bool, default=False, help="Flip polygons horizontally"
-    )
-    parser.add_argument(
-        "--flip_vertical", type=bool, default=False, help="Flip polygons vertically"
-    )
+    parser.add_argument("--flip_horizontal", type=bool, default=False, help="Flip polygons horizontally")
+    parser.add_argument("--flip_vertical", type=bool, default=False, help="Flip polygons vertically")
     parser.set_defaults(func=aggregate_polygons)
     return parser
 
@@ -182,7 +231,8 @@ def aggregate_polygons(
     if save_union:
         union_path = str(output).replace(".json", "_union.json")
         logger.info(f"Saving unioned polygons to {union_path}")
-        polygons_union = polygons.dissolve(by="cell").reset_index()[["cell", "fov", "geometry"]]
+        polygons_union = _dissolve_skip_bad_polygons(polygons, by="cell")
+        polygons_union = polygons_union.reset_index()[["cell", "fov", "geometry"]]
         polygons_union.geometry = polygons_union.geometry.buffer(-1.5).buffer(2)
         polygons_union.geometry = polygons_union.simplify(0.5)
         with warnings.catch_warnings():

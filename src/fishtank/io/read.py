@@ -6,6 +6,8 @@ from xml.etree import ElementTree as xml
 import numpy as np
 import pandas as pd
 import skimage as ski
+import tifffile as tiff
+from tqdm.auto import tqdm
 
 from fishtank.utils import create_mosaic, determine_fov_format
 
@@ -54,14 +56,14 @@ def read_xml(path: str | pathlib.Path, parse: bool = True) -> dict:
     attrs["z_offsets"] = z_offsets
     attrs["z_positions"] = z_positions
     shutters_str = tree["illumination"]["shutters"]
-    if "shutter_" in  shutters_str:
+    if "shutter_" in shutters_str:
         colors_str = re.search(r"shutter_([\d_]+)_s", shutters_str).group(1)
         attrs["colors"] = list(map(int, colors_str.split("_")))
         attrs["frames_per_color"] = [frames // len(attrs["colors"]) for _ in attrs["colors"]]
-    elif re.search(r'f\d+', shutters_str):
-        color_matches = re.findall(r'(\d+)(?=f\d+)', shutters_str)
+    elif re.search(r"f\d+", shutters_str):
+        color_matches = re.findall(r"(\d+)(?=f\d+)", shutters_str)
         attrs["colors"] = list(map(int, color_matches))
-        frames_matches = re.findall(r'f(\d+)', shutters_str)
+        frames_matches = re.findall(r"f(\d+)", shutters_str)
         attrs["frames_per_color"] = list(map(int, frames_matches))
     else:
         raise ValueError(f"Cannot parse colors from shutter string: {shutters_str}")
@@ -93,6 +95,7 @@ def list_fovs(path: str | pathlib.Path, file_pattern: str = "{series}/Conv_zscan
         series_list = [""]
 
     for series in series_list:
+        file_pattern = re.sub(r"\{fov:[^}]+\}", "{fov}", file_pattern)
         fov_pattern = file_pattern.format(series=series, fov="*")
         prefix, suffix = fov_pattern.split("*")
         fov_files = list(path.glob(fov_pattern))
@@ -160,16 +163,14 @@ def _reconstruct_sparse_frame_map(
     z_positions = list(map(float, z_positions))
     if len(frames_per_color) != len(color_order):
         raise ValueError(
-            f"frames_per_color length ({len(frames_per_color)}) must match "
-            f"number of colors ({len(color_order)})."
+            f"frames_per_color length ({len(frames_per_color)}) must match " f"number of colors ({len(color_order)})."
         )
     # Discard extra frames
     n_frames = np.sum(frames_per_color)
     z_positions = z_positions[:n_frames]
     if sum(frames_per_color) != n_frames:
         raise ValueError(
-            f"Inconsistent metadata: sum(frames_per_color)={sum(frames_per_color)} "
-            f"but len(z_positions)={n_frames}."
+            f"Inconsistent metadata: sum(frames_per_color)={sum(frames_per_color)} " f"but len(z_positions)={n_frames}."
         )
     # Build z planes in acquisition order (by change points)
     z_planes: list[float] = []
@@ -209,21 +210,18 @@ def _reconstruct_sparse_frame_map(
                 break
         if write_i != end:
             raise ValueError(
-                f"Inconsistent metadata: did not fill z-run {r} "
-                f"(filled {write_i-start} of {run_len})."
+                f"Inconsistent metadata: did not fill z-run {r} " f"(filled {write_i-start} of {run_len})."
             )
     if any(rem != 0 for rem in remaining):
         raise ValueError("Inconsistent metadata: did not consume frames_per_color exactly.")
     # Map (color, z_index) -> frame_index
     z_index_of_plane = {z: idx for idx, z in enumerate(z_planes)}
     cz_to_frame: dict[tuple[int, int], int] = {}
-    for i, (z, c) in enumerate(zip(z_positions, frame_colors)):
+    for i, (z, c) in enumerate(zip(z_positions, frame_colors, strict=False)):
         zi = z_index_of_plane[float(z)]
         key = (int(c), zi)
         if key in cz_to_frame:
-            raise ValueError(
-                f"Inconsistent metadata: multiple frames for color={int(c)} at z_index={zi}."
-            )
+            raise ValueError(f"Inconsistent metadata: multiple frames for color={int(c)} at z_index={zi}.")
         cz_to_frame[key] = i
 
     return z_planes, frame_colors, cz_to_frame
@@ -273,6 +271,9 @@ def read_img(
     frames = None
     z_max = None
     n_colors = 1
+    # Check file exists
+    if not path.exists():
+        raise FileNotFoundError(f"File {path} does not exist")
     # Attempt to load attributes
     if os.path.exists(path.with_suffix(".xml")):
         attrs = read_xml(path.with_suffix(".xml"))
@@ -297,7 +298,7 @@ def read_img(
             missing = np.setdiff1d(req_colors, np.array(color_order))
             raise ValueError(f"Color {missing} not found in image colors {np.array(color_order)}")
         colors_arr = req_colors
-        color_slices = np.array([np.where(color_order == c)[0][0] for c in colors_arr]) # problem
+        color_slices = np.array([np.where(color_order == c)[0][0] for c in colors_arr])  # problem
         n_colors = len(colors_arr)
     else:
         colors_arr = np.array(color_order)
@@ -305,7 +306,7 @@ def read_img(
     frames_per_color = np.array(attrs.get("frames_per_color", []))
     if frames_per_color.size > 0:
         attrs["z_positions"] = attrs["z_positions"][: np.sum(frames_per_color)]
-        attrs["z_offsets"] = np.array(attrs["z_offsets"])[ : np.max(frames_per_color)].tolist()
+        attrs["z_offsets"] = np.array(attrs["z_offsets"])[: np.max(frames_per_color)].tolist()
         z_max = len(attrs["z_offsets"])
     # Process z-slice selection
     if z_slices is not None:
@@ -381,6 +382,14 @@ def read_img(
         # Load image
         if suffix == ".dax":
             img = read_dax(path, shape=shape, frames=frames, **plugin_args)
+        elif suffix in [".tif", ".tiff"] and plugin is None:
+            with tiff.TiffFile(path) as tif:
+                pages = tif.pages
+                if isinstance(frames, list | tuple | np.ndarray):
+                    img = np.stack([pages[i].asarray() for i in frames])
+                else:
+                    img = pages[frames].asarray()
+            img = np.squeeze(img)
         else:
             img = ski.io.imread(path, plugin=plugin, **plugin_args)[frames]
             img = np.squeeze(img)
@@ -394,7 +403,7 @@ def read_img(
         img = np.flip(img, axis=-1)
     if attrs.get("flip_vertical", False):
         img = np.flip(img, axis=-2)
-    if suffix != ".dax" and attrs.get("transpose", False): # transpose second for tif image
+    if suffix != ".dax" and attrs.get("transpose", False):  # transpose second for tif image
         img = img.swapaxes(-1, -2)
     # Z-project image if necessary
     if z_project:
@@ -475,7 +484,7 @@ def read_fov(
         if file_pattern != "{series}":
             file_pattern = determine_fov_format(path, fov=fov, series=series[0], file_pattern=file_pattern)
         for s in series:
-            file = path / file_pattern.format(series=s, fov=fov).format(fov = fov)
+            file = path / file_pattern.format(series=s, fov=fov).format(fov=fov)
             img, attr = read_img(file, z_slices=z_slices, z_project=z_project, colors=colors)
             imgs.append(img)
             attrs.append(attr)
@@ -488,7 +497,7 @@ def read_fov(
                 path, fov=fov, series=channels["series"].values[0], file_pattern=file_pattern
             )
         for s, s_channels in channels.groupby("series", sort=False):
-            file = path / file_pattern.format(series=s, fov=fov).format(fov = fov)
+            file = path / file_pattern.format(series=s, fov=fov).format(fov=fov)
             img, attr = read_img(
                 file,
                 colors=s_channels["color"].values,
@@ -528,6 +537,7 @@ def read_mosaic(
     downsample: int | bool = 4,
     filter: callable = None,
     filter_args: dict = None,
+    microns_per_pixel: float | None = None,
 ) -> tuple[np.ndarray, np.ndarray]:
     """Read FOV images as a mosaic.
 
@@ -577,8 +587,16 @@ def read_mosaic(
     # Read images
     imgs = []
     positions = []
-    for fov in fovs:
-        img, attrs = read_fov(path, series=series, fov=fov, colors=colors, z_slices=z_slices, z_project=z_project)
+    for fov in tqdm(fovs, desc=f"Reading mosaic {series}", unit="fov"):
+        img, attrs = read_fov(
+            path,
+            series=series,
+            fov=fov,
+            colors=colors,
+            z_slices=z_slices,
+            z_project=z_project,
+            file_pattern=file_pattern,
+        )
         if downsample > 1:
             if len(img.shape) == 2:
                 img = img[::downsample, ::downsample]
@@ -588,7 +606,8 @@ def read_mosaic(
             img = filter(img, **filter_args)
         imgs.append(img)
         positions.append(attrs["stage_position"])
-        microns_per_pixel = attrs["micron_per_pixel"] * downsample
+        if (microns_per_pixel is None) and ("micron_per_pixel" in attrs.keys()):
+            microns_per_pixel = attrs["micron_per_pixel"]
     # Create mosaic
-    mosaic, bounds = create_mosaic(imgs, positions, microns_per_pixel)
+    mosaic, bounds = create_mosaic(imgs, positions, microns_per_pixel * downsample)
     return mosaic, bounds

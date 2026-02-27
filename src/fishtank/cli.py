@@ -41,6 +41,9 @@ def main():
         "assign-spots", parents=[scripts.assign_spots_script.get_parser()], help="Assign spots to the nearest polygon"
     )
     subparsers.add_parser("fovs", parents=[scripts.fovs_script.get_parser()], help="List FOVs in a directory")
+    subparsers.add_parser(
+        "mosaic", parents=[scripts.mosaic_script.get_parser()], help="Create a mosaic from a set of image files"
+    )
 
     # Parse arguments and dispatch the function
     args = parser.parse_args()
