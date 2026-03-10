@@ -9,7 +9,7 @@ import skimage as ski
 
 import fishtank as ft
 
-from ._utils import parse_bool, parse_dict, parse_list, parse_path, parse_int_or_str
+from ._utils import parse_bool, parse_dict, parse_list, parse_path, parse_int_or_str, parse_index
 
 
 class FOVLoggerAdapter(logging.LoggerAdapter):  # noqa: D101
@@ -118,6 +118,12 @@ def get_parser():
     parser.add_argument(
         "--scale_factor", type=float, default=None, help="Factor to convert pixel coordinates to microns. If None, will use micron_per_pixel from image metadata"
     )
+    parser.add_argument(
+        "--z_slices",
+        type=parse_index,
+        default=None,
+        help="Z-slices to use for segmentation (e.g., 1 or 1,2,3 or 1:20:5)",
+    )
     parser.set_defaults(func=detect_spots)
     return parser
 
@@ -146,6 +152,7 @@ def detect_spots(
     reg_z_slice: int | None = None,
     reg_clip_pct: float | None = None,
     scale_factor: float | None = None,
+    z_slices: list[int] | slice | None = None,
     **kwargs,
 ):
     """Detect spots in an image and quantify their intensity.
@@ -200,6 +207,8 @@ def detect_spots(
         Percentile to clip registration image intensities.
     scale_factor
         Factor to convert pixel coordinates to microns. If None, will use micron_per_pixel from image metadata.
+    z_slices
+        Z-slices to use for spot_detection (e.g., 1 or 1,2,3 or 1:20:5).
     """
     # Setup
     logger = logging.getLogger("detect_spots")
@@ -215,7 +224,7 @@ def detect_spots(
     # Get reference image
     logger.info(f"Loading reference series {ref_series}")
     ref_channels = channels.query("series == @ref_series & bit not in @reg_bit and bit not in @exclude_bits")
-    ref_img, ref_attr = ft.io.read_fov(input, fov, channels=ref_channels, file_pattern=file_pattern)
+    ref_img, ref_attr = ft.io.read_fov(input, fov, channels=ref_channels, file_pattern=file_pattern, z_slices=z_slices)
     reg_img = _load_reg_img(input, fov, ref_series, reg_bit, reg_color, channels, file_pattern, reg_z_slice, z_drift, reg_clip_pct)
     current_drift = np.zeros(3, dtype=int) if z_drift else np.zeros(2, dtype=int)
     # Get common image
@@ -228,7 +237,7 @@ def detect_spots(
         logger.info("Getting common bit max projection")
         for series, series_channels in channels.query("bit in @common_bits").groupby("series", sort=False):
             logger.info(f"Loading series {series}")
-            img, _ = ft.io.read_fov(input, fov, channels=series_channels, file_pattern=file_pattern)
+            img, _ = ft.io.read_fov(input, fov, channels=series_channels, file_pattern=file_pattern, z_slices=z_slices)
             series_reg_img = _load_reg_img(input, fov, series, reg_bit, reg_color, channels, file_pattern, reg_z_slice, z_drift, reg_clip_pct)
             drift = ski.registration.phase_cross_correlation(reg_img, series_reg_img)[0].astype(int)
             logger.info(f"Series drift: {drift}")
@@ -261,7 +270,7 @@ def detect_spots(
     for series, series_channels in filtered_channels.groupby("series", sort=False):
         # Read series image
         logger.info(f"Loading series {series}")
-        img, series_attr = ft.io.read_fov(input, fov, channels=series_channels, file_pattern=file_pattern)
+        img, series_attr = ft.io.read_fov(input, fov, channels=series_channels, file_pattern=file_pattern, z_slices=z_slices)
         if img.ndim == 3:  # (Z, Y, X)
             img = img[np.newaxis, ...]
         channel_max = img.max(axis=(1, 2, 3))
