@@ -19,6 +19,17 @@ def color_usage_path(img_path):
     return img_path / "color_usage.csv"
 
 
+@pytest.fixture()
+def frame_table_path(img_path):
+    return img_path / "H0R1" / "frame_table.csv"
+
+
+@pytest.fixture()
+def frame_table_ragged_path(img_path):
+    return img_path / "H0R1" / "frame_table_ragged.csv"
+
+
+
 def test_read_xml(xml_path):
     expected = {
         "objective": "obj1",
@@ -79,6 +90,54 @@ def test_read_img(dax_path):
         img, attrs = ft.io.read_img(dax_path, z_slices=[0, 1, 2], colors="bad")
     with pytest.raises((ValueError, IndexError)):
         img, attrs = ft.io.read_img(dax_path, z_slices=100)
+
+
+def test_read_img_frame_table(dax_path, frame_table_path):
+    # Frame table should give identical result to XML-based read
+    img_xml, attrs_xml = ft.io.read_img(dax_path)
+    img_ft, attrs_ft = ft.io.read_img(dax_path, frames=frame_table_path)
+    assert img_ft.shape == (5, 5, 288, 288)
+    assert np.array_equal(img_ft, img_xml)
+    assert attrs_ft["z_offsets"] == attrs_xml["z_offsets"]
+    assert attrs_ft["colors"] == attrs_xml["colors"]
+    # Color selection
+    img_ft, attrs = ft.io.read_img(dax_path, frames=frame_table_path, colors=[748, 405])
+    assert img_ft.shape == (2, 5, 288, 288)
+    # z-slice selection
+    img_ft, attrs = ft.io.read_img(dax_path, frames=frame_table_path, z_slices=[0, 2])
+    assert img_ft.shape == (5, 2, 288, 288)
+    assert attrs["z_offsets"] == [-15.0, -13.8]
+    # Frame count mismatch raises an error
+    wrong_frame_table = frame_table_path.parent / "frame_table_wrong.csv"
+    wrong_frame_table.write_text(",color,z\n0,748,-15.0\n1,637,-15.0\n")
+    with pytest.raises(ValueError, match="Frame table has 2 rows but image has 25 frames"):
+        ft.io.read_img(dax_path, frames=wrong_frame_table)
+    wrong_frame_table.unlink()
+
+
+def test_read_img_frame_table_inference(dax_path, frame_table_ragged_path):
+    # Ragged table: 748 at z_index 0,1; 405 at z_index 0 only
+    # colors specified → z_slices inferred (only z where ALL colors have frames)
+    img, attrs = ft.io.read_img(dax_path, frames=frame_table_ragged_path, colors=[748, 405])
+    assert img.shape == (2, 288, 288)  # both colors, 1 common z-plane (z_index 0)
+    assert attrs["z_offsets"] == [-15.0]
+    # single color → gets its own z range
+    img, attrs = ft.io.read_img(dax_path, frames=frame_table_ragged_path, colors=[748])
+    assert img.shape == (2, 288, 288)  # 1 color (squeezed), 2 z-planes
+    assert attrs["z_offsets"] == [-15.0, -14.4]
+    # z_slices specified → colors inferred (only colors present at ALL z_slices)
+    img, attrs = ft.io.read_img(dax_path, frames=frame_table_ragged_path, z_slices=[0])
+    assert img.shape == (2, 288, 288)  # 2 colors at z_index 0, 1 z-plane (squeezed)
+    assert set(attrs["colors"]) == {748, 405}
+    img, attrs = ft.io.read_img(dax_path, frames=frame_table_ragged_path, z_slices=[1])
+    assert img.shape == (288, 288)  # only 748 at z_index 1, both axes squeezed
+    assert attrs["colors"] == [748]
+    # neither specified → error (ragged)
+    with pytest.raises(ValueError, match="ragged"):
+        ft.io.read_img(dax_path, frames=frame_table_ragged_path)
+    # explicit invalid combination still errors
+    with pytest.raises(ValueError, match="color/z combinations that do not exist"):
+        ft.io.read_img(dax_path, frames=frame_table_ragged_path, colors=[748, 405], z_slices=[0, 1])
 
 
 def test_read_color_usage(color_usage_path):

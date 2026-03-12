@@ -227,6 +227,40 @@ def _reconstruct_sparse_frame_map(
     return z_planes, frame_colors, cz_to_frame
 
 
+def _read_frame_table(path: str | pathlib.Path) -> tuple[np.ndarray, list[float], dict, int]:
+    """Read a frame table CSV and build a (color, z_index) -> frame_index mapping.
+
+    Parameters
+    ----------
+    path
+        Path to frame table CSV with an index column (frame index) and columns 'color' and 'z'.
+        Rows with NaN color are treated as blank frames and skipped.
+
+    Returns
+    -------
+    color_order
+        Unique colors in order of first appearance, as an integer array.
+    z_offsets
+        Unique z values in order of first appearance.
+    cz_to_frame
+        Dict mapping (color_int, z_index) to frame_index.
+    n_rows
+        Total number of rows in the table (including blank frames).
+    """
+    ft = pd.read_csv(path, index_col=0)
+    n_rows = len(ft)
+    ft = ft.dropna(subset=["color"])
+    color_order = np.array(list(dict.fromkeys(ft["color"].astype(int).tolist())))
+    z_offsets = list(dict.fromkeys(ft["z"].tolist()))
+    z_index_of = {z: i for i, z in enumerate(z_offsets)}
+    cz_to_frame: dict[tuple[int, int], int] = {}
+    for frame_idx, row in ft.iterrows():
+        c = int(row["color"])
+        zi = z_index_of[float(row["z"])]
+        cz_to_frame[(c, zi)] = int(frame_idx)
+    return color_order, z_offsets, cz_to_frame, n_rows
+
+
 def read_img(
     path: str | pathlib.Path,
     colors: int | str | list = None,
@@ -234,6 +268,7 @@ def read_img(
     z_project: bool = False,
     shape: tuple = None,
     color_order: list = None,
+    frames: str | pathlib.Path = None,
     plugin: str = None,
     **plugin_args,
 ) -> tuple[np.ndarray, dict]:
@@ -253,6 +288,11 @@ def read_img(
         Shape of a single frame.
     color_order
         Order of colors in the image.
+    frames
+        Path to a frame table CSV specifying the color and z-position of each frame.
+        The CSV must have an index column (frame index) and columns 'color' and 'z'.
+        Rows with NaN color are treated as blank frames and skipped.
+        When provided, overrides XML-based frame metadata for color/z mapping.
     plugin
         Name of skimage plugin used to load image if not dax format.
     plugin_args
@@ -268,7 +308,7 @@ def read_img(
     # Setup
     path = pathlib.Path(path)
     suffix = path.suffix.lower()
-    frames = None
+    frame_indices = None
     z_max = None
     n_colors = 1
     # Check file exists
@@ -286,6 +326,32 @@ def read_img(
             n_colors = len(attrs["colors"])
     else:
         attrs = {}
+    # If frame table provided, override color/z metadata
+    cz_to_frame = None
+    if frames is not None:
+        color_order_ft, z_offsets_ft, cz_to_frame, n_table_rows = _read_frame_table(frames)
+        # Validate that the frame table covers exactly the frames in the image
+        if "number_frames" in attrs:
+            n_image_frames = attrs["number_frames"]
+            if n_table_rows != n_image_frames:
+                raise ValueError(
+                    f"Frame table has {n_table_rows} rows but image has {n_image_frames} frames."
+                )
+        elif suffix == ".dax":
+            try:
+                img_flat = np.fromfile(path, dtype="uint16", count=-1)
+                img_flat.reshape(n_table_rows, -1)
+            except ValueError:
+                raise ValueError(  # noqa: B904
+                    f"Frame table has {n_table_rows} rows but image size {len(img_flat)} "
+                    f"pixels is not divisible by {n_table_rows}."
+                )
+            del img_flat
+        color_order = color_order_ft
+        attrs["colors"] = color_order.tolist()
+        attrs["z_offsets"] = z_offsets_ft
+        z_max = len(z_offsets_ft)
+        n_colors = len(color_order)
     # Process colors selection (values from color_order)
     if colors is not None:
         if color_order is None:
@@ -298,13 +364,13 @@ def read_img(
             missing = np.setdiff1d(req_colors, np.array(color_order))
             raise ValueError(f"Color {missing} not found in image colors {np.array(color_order)}")
         colors_arr = req_colors
-        color_slices = np.array([np.where(color_order == c)[0][0] for c in colors_arr])  # problem
+        color_slices = np.array([np.where(color_order == c)[0][0] for c in colors_arr])
         n_colors = len(colors_arr)
     else:
-        colors_arr = np.array(color_order)
-    # Discard extra frames
+        colors_arr = np.array(color_order) if color_order is not None else None
+    # Discard extra frames (XML-based only; skip when frame table is provided)
     frames_per_color = np.array(attrs.get("frames_per_color", []))
-    if frames_per_color.size > 0:
+    if frames_per_color.size > 0 and cz_to_frame is None:
         attrs["z_positions"] = attrs["z_positions"][: np.sum(frames_per_color)]
         attrs["z_offsets"] = np.array(attrs["z_offsets"])[: np.max(frames_per_color)].tolist()
         z_max = len(attrs["z_offsets"])
@@ -316,82 +382,109 @@ def read_img(
             z_slices = [z_slices]
         z_slices = np.array(z_slices)
         attrs["z_offsets"] = np.array(attrs["z_offsets"])[z_slices].astype(float).tolist()
-    is_sparse = frames_per_color.size > 0 and frames_per_color.min() != frames_per_color.max()
+    # Determine whether to use the sparse/frame-table lookup path
+    xml_sparse = frames_per_color.size > 0 and frames_per_color.min() != frames_per_color.max()
+    is_sparse = xml_sparse or (cz_to_frame is not None)
     if is_sparse:
-        if colors is None and z_slices is None:
-            raise ValueError(
-                "This image has ragged (non-rectangular) color-by-z acquisition. "
-                "You must specify either 'colors' or 'z_slices' to read it."
+        if cz_to_frame is None:
+            # XML-based sparse: reconstruct frame map
+            z_planes, _, cz_to_frame = _reconstruct_sparse_frame_map(
+                z_positions=attrs["z_positions"],
+                color_order=np.array(color_order),
+                frames_per_color=frames_per_color,
             )
-        z_planes, _, cz_to_frame = _reconstruct_sparse_frame_map(
-            z_positions=attrs["z_positions"],
-            color_order=np.array(color_order),
-            frames_per_color=frames_per_color,
-        )
-        z_max = len(z_planes)
-        # If selecting frames, validate all requested (color,z) exist
-        if (z_slices is not None) or (colors is not None):
-            if z_slices is None:
-                z_slices = np.arange(z_max, dtype=int)
-
-            frames_list: list[int] = []
-            missing_pairs: list[tuple[int, int]] = []
-            for zi in z_slices.tolist():
-                for c in colors_arr.tolist():
-                    key = (int(c), int(zi))
-                    if key not in cz_to_frame:
-                        missing_pairs.append(key)
-                    else:
-                        frames_list.append(cz_to_frame[key])
-
-            if missing_pairs:
-                # Build a helpful message grouped by color
-                by_color: dict[int, list[int]] = {}
-                for c, zi in missing_pairs:
-                    by_color.setdefault(c, []).append(zi)
-                detail = ", ".join(
-                    f"{c}: missing z_slices {sorted(set(zis))}"
-                    for c, zis in sorted(by_color.items(), key=lambda x: x[0])
-                )
+            z_max = len(z_planes)
+        # Intelligently infer the unspecified axis from cz_to_frame
+        if z_slices is None and colors is not None:
+            # Infer z_slices: indices where ALL specified colors have frames
+            z_slices = np.array(
+                sorted(zi for zi in range(z_max) if all((int(c), zi) in cz_to_frame for c in colors_arr)),
+                dtype=int,
+            )
+            if len(z_slices) == 0:
                 raise ValueError(
-                    "Invalid (colors, z_slices) selection for this image. "
-                    f"Requested some color/z combinations that do not exist: {detail}."
+                    f"No z-slices exist where all specified colors {colors_arr.tolist()} have frames."
                 )
-            frames = np.array(frames_list, dtype=int)
-            # Update attrs to reflect selection
-            attrs["colors"] = colors_arr.tolist()
-            attrs["z_positions_selected"] = [z_planes[i] for i in z_slices.tolist()]
+            attrs["z_offsets"] = np.array(attrs["z_offsets"])[z_slices].astype(float).tolist()
+        elif z_slices is not None and colors is None:
+            # Infer colors: colors that have frames at ALL specified z-slices
+            all_colors_in_map = list(dict.fromkeys(c for c, _ in cz_to_frame))
+            colors_arr = np.array(
+                [c for c in all_colors_in_map if all((c, int(zi)) in cz_to_frame for zi in z_slices)]
+            )
             n_colors = len(colors_arr)
-        # Load image (frames can be None, meaning full read)
-        if suffix == ".dax":
-            img = read_dax(path, shape=shape, frames=frames, **plugin_args)
-        else:
-            raw = ski.io.imread(path, plugin=plugin, **plugin_args)
-            img = raw if frames is None else raw[frames]
-    else:
-        # Get frames
-        if z_slices is not None or colors is not None:
-            frames = np.arange(z_max * len(color_order)).reshape(z_max, len(color_order))
-            if z_slices is not None:
-                frames = np.take(frames, z_slices, axis=0)
-            if colors is not None:
-                frames = np.take(frames, color_slices, axis=1)
-            frames = frames.flatten()
-        else:
-            frames = np.arange(z_max * len(color_order)) if z_max is not None else None
+            if n_colors == 0:
+                raise ValueError(
+                    f"No colors have frames at all specified z-slices {z_slices.tolist()}."
+                )
+            attrs["colors"] = colors_arr.tolist()
+        elif z_slices is None and colors is None:
+            # Neither specified: error if ragged, otherwise load everything
+            n_expected = len(color_order) * z_max if color_order is not None else 0
+            if len(cz_to_frame) < n_expected:
+                raise ValueError(
+                    "This image has ragged (non-rectangular) color-by-z acquisition. "
+                    "You must specify either 'colors' or 'z_slices' to read it."
+                )
+            z_slices = np.arange(z_max, dtype=int)
+            if colors_arr is None:
+                colors_arr = np.array(color_order)
+                n_colors = len(colors_arr)
+        # Both specified: build frame list and validate all pairs exist
+        frames_list: list[int] = []
+        missing_pairs: list[tuple[int, int]] = []
+        for zi in z_slices.tolist():
+            for c in colors_arr.tolist():
+                key = (int(c), int(zi))
+                if key not in cz_to_frame:
+                    missing_pairs.append(key)
+                else:
+                    frames_list.append(cz_to_frame[key])
+        if missing_pairs:
+            by_color: dict[int, list[int]] = {}
+            for c, zi in missing_pairs:
+                by_color.setdefault(c, []).append(zi)
+            detail = ", ".join(
+                f"{c}: missing z_slices {sorted(set(zis))}"
+                for c, zis in sorted(by_color.items(), key=lambda x: x[0])
+            )
+            raise ValueError(
+                "Invalid (colors, z_slices) selection for this image. "
+                f"Requested some color/z combinations that do not exist: {detail}."
+            )
+        frame_indices = np.array(frames_list, dtype=int)
+        attrs["colors"] = colors_arr.tolist()
+        n_colors = len(colors_arr)
         # Load image
         if suffix == ".dax":
-            img = read_dax(path, shape=shape, frames=frames, **plugin_args)
+            img = read_dax(path, shape=shape, frames=frame_indices, **plugin_args)
+        else:
+            raw = ski.io.imread(path, plugin=plugin, **plugin_args)
+            img = raw[frame_indices]
+    else:
+        # Get frame indices for non-sparse (rectangular) case
+        if z_slices is not None or colors is not None:
+            frame_indices = np.arange(z_max * len(color_order)).reshape(z_max, len(color_order))
+            if z_slices is not None:
+                frame_indices = np.take(frame_indices, z_slices, axis=0)
+            if colors is not None:
+                frame_indices = np.take(frame_indices, color_slices, axis=1)
+            frame_indices = frame_indices.flatten()
+        else:
+            frame_indices = np.arange(z_max * len(color_order)) if z_max is not None else None
+        # Load image
+        if suffix == ".dax":
+            img = read_dax(path, shape=shape, frames=frame_indices, **plugin_args)
         elif suffix in [".tif", ".tiff"] and plugin is None:
             with tiff.TiffFile(path) as tif:
                 pages = tif.pages
-                if isinstance(frames, list | tuple | np.ndarray):
-                    img = np.stack([pages[i].asarray() for i in frames])
+                if isinstance(frame_indices, list | tuple | np.ndarray):
+                    img = np.stack([pages[i].asarray() for i in frame_indices])
                 else:
-                    img = pages[frames].asarray()
+                    img = pages[frame_indices].asarray()
             img = np.squeeze(img)
         else:
-            img = ski.io.imread(path, plugin=plugin, **plugin_args)[frames]
+            img = ski.io.imread(path, plugin=plugin, **plugin_args)[frame_indices]
             img = np.squeeze(img)
     # Reshape image if necessary
     if n_colors > 1:
