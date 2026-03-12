@@ -1,4 +1,5 @@
 import numpy as np
+import pandas as pd
 import pytest
 
 import fishtank as ft
@@ -140,11 +141,16 @@ def test_read_img_frame_table_inference(dax_path, frame_table_ragged_path):
         ft.io.read_img(dax_path, frames=frame_table_ragged_path, colors=[748, 405], z_slices=[0, 1])
 
 
-def test_read_color_usage(color_usage_path):
+def test_read_color_usage(color_usage_path, img_path):
     channels = ft.io.read_color_usage(color_usage_path)
     assert channels.shape == (13, 3)
     assert channels["color"].nunique() == 5
     assert set(channels.columns) == {"color", "series", "bit"}
+    # with frames column
+    channels_ft = ft.io.read_color_usage(img_path / "color_usage_frames.csv")
+    assert set(channels_ft.columns) == {"color", "series", "bit", "frames"}
+    assert channels_ft.loc[channels_ft["series"] == "H0R1", "frames"].iloc[0] == "tests/data/merfish/H0R1/frame_table.csv"
+    assert pd.isna(channels_ft.loc[channels_ft["series"] == "H1R2", "frames"].iloc[0])
 
 
 def test_read_fov(img_path, channels):
@@ -174,6 +180,14 @@ def test_read_fov(img_path, channels):
     )
     assert img.shape == (3, 288, 288)
     assert attrs["colors"] == [748, 748, 748]
+    # channels with frames column: result should match reading without frame table
+    channels_ft = ft.io.read_color_usage(img_path / "color_usage_frames.csv")
+    img_ft, attrs_ft = ft.io.read_fov(
+        img_path, 1, channels=channels_ft.query("series == 'H0R1'"), file_pattern="{series}/Conv_zscan_{fov}.dax"
+    )
+    img_noft, _ = ft.io.read_fov(img_path, 1, "H0R1", file_pattern="{series}/Conv_zscan_{fov}.dax")
+    assert img_ft.shape == img_noft.shape
+    assert np.array_equal(img_ft, img_noft)
 
 
 def test_read_mosaic(img_path):

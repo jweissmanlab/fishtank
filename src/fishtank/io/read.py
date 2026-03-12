@@ -516,10 +516,13 @@ def read_color_usage(path: str | pathlib.Path) -> pd.DataFrame:
     -------
     channels
         a DataFrame with columns "series", "color", and "bit" for each channel.
+        If the CSV contains a "frames" column, the output also includes a "frames"
+        column with the path to the frame table CSV for each series.
     """
     color_usage = pd.read_csv(path)
     color_usage = color_usage.rename(columns={color_usage.columns[0]: "series"})
-    channels = color_usage.melt(id_vars="series", var_name="color", value_name="bit")
+    id_vars = ["series"] + (["frames"] if "frames" in color_usage.columns else [])
+    channels = color_usage.melt(id_vars=id_vars, var_name="color", value_name="bit")
     channels["color_order"] = channels["color"].factorize()[0]
     channels["order"] = channels["series"].factorize()[0]
     channels = channels.sort_values(["order", "color_order"]).drop(columns=["color_order", "order"])
@@ -591,11 +594,17 @@ def read_fov(
             )
         for s, s_channels in channels.groupby("series", sort=False):
             file = path / file_pattern.format(series=s, fov=fov).format(fov=fov)
+            frame_table = None
+            if "frames" in s_channels.columns:
+                ft_val = s_channels["frames"].iloc[0]
+                if pd.notna(ft_val):
+                    frame_table = ft_val
             img, attr = read_img(
                 file,
                 colors=s_channels["color"].values,
                 z_slices=z_slices,
                 z_project=z_project,
+                frames=frame_table,
             )
             imgs.append(img)
             attrs.append(attr)
