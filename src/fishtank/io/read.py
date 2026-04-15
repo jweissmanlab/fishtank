@@ -56,7 +56,11 @@ def read_xml(path: str | pathlib.Path, parse: bool = True) -> dict:
     attrs["z_offsets"] = z_offsets
     attrs["z_positions"] = z_positions
     shutters_str = tree["illumination"]["shutters"]
-    if "shutter_" in shutters_str:
+    if "shutter_config_" in shutters_str:
+        colors_str = re.search(r"shutter_config_([\d_]+)_s", shutters_str).group(1)
+        attrs["colors"] = list(map(int, colors_str.split("_")))
+        attrs["frames_per_color"] = [frames // len(attrs["colors"]) for _ in attrs["colors"]]
+    elif "shutter_" in shutters_str:
         colors_str = re.search(r"shutter_([\d_]+)_s", shutters_str).group(1)
         attrs["colors"] = list(map(int, colors_str.split("_")))
         attrs["frames_per_color"] = [frames // len(attrs["colors"]) for _ in attrs["colors"]]
