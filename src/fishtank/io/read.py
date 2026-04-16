@@ -19,7 +19,7 @@ def _xml_to_dict(element):
     return {child.tag: _xml_to_dict(child) for child in element}
 
 
-def read_xml(path: str | pathlib.Path, parse: bool = True) -> dict:
+def read_xml(path: str | pathlib.Path, parse: bool = True, parse_colors: bool = True) -> dict:
     """Read MERFISH formatted xml file.
 
     Parameters
@@ -28,6 +28,11 @@ def read_xml(path: str | pathlib.Path, parse: bool = True) -> dict:
         Path to xml file.
     parse
         If True, parse relevant fields.
+    parse_colors
+        If True, parse color and frame metadata from the shutter configuration
+        string and include ``colors`` and ``frames_per_color`` in the returned
+        dict.  Set to False when a frame table will supply color metadata
+        instead, to avoid errors from non-standard shutter filenames.
 
     Returns
     -------
@@ -55,22 +60,22 @@ def read_xml(path: str | pathlib.Path, parse: bool = True) -> dict:
             z_offsets.append(float(z_offset))
     attrs["z_offsets"] = z_offsets
     attrs["z_positions"] = z_positions
-    shutters_str = tree["illumination"]["shutters"]
-    if "shutter_config_" in shutters_str:
-        colors_str = re.search(r"shutter_config_([\d_]+)_s", shutters_str).group(1)
-        attrs["colors"] = list(map(int, colors_str.split("_")))
-        attrs["frames_per_color"] = [frames // len(attrs["colors"]) for _ in attrs["colors"]]
-    elif "shutter_" in shutters_str:
-        colors_str = re.search(r"shutter_([\d_]+)_s", shutters_str).group(1)
-        attrs["colors"] = list(map(int, colors_str.split("_")))
-        attrs["frames_per_color"] = [frames // len(attrs["colors"]) for _ in attrs["colors"]]
-    elif re.search(r"f\d+", shutters_str):
-        color_matches = re.findall(r"(\d+)(?=f\d+)", shutters_str)
-        attrs["colors"] = list(map(int, color_matches))
-        frames_matches = re.findall(r"f(\d+)", shutters_str)
-        attrs["frames_per_color"] = list(map(int, frames_matches))
-    else:
-        raise ValueError(f"Cannot parse colors from shutter string: {shutters_str}")
+    if parse_colors:
+        shutters_str = tree["illumination"]["shutters"]
+        # Pattern 1: shutter[_config]_488_560_650_s... (underscore-delimited digit list)
+        m = re.search(r"shutter(?:_config)?_([\d_]+)_s", shutters_str)
+        if m:
+            colors_str = m.group(1)
+            attrs["colors"] = list(map(int, colors_str.split("_")))
+            attrs["frames_per_color"] = [frames // len(attrs["colors"]) for _ in attrs["colors"]]
+        else:
+            # Pattern 2: 488f1-650f25-750f25 (each color followed by its frame count)
+            color_frame_matches = re.findall(r"(\d+)f(\d+)", shutters_str)
+            if color_frame_matches:
+                attrs["colors"] = [int(c) for c, _ in color_frame_matches]
+                attrs["frames_per_color"] = [int(f) for _, f in color_frame_matches]
+            else:
+                raise ValueError(f"Cannot parse colors from shutter string: {shutters_str}")
     return attrs
 
 
@@ -320,7 +325,7 @@ def read_img(
         raise FileNotFoundError(f"File {path} does not exist")
     # Attempt to load attributes
     if os.path.exists(path.with_suffix(".xml")):
-        attrs = read_xml(path.with_suffix(".xml"))
+        attrs = read_xml(path.with_suffix(".xml"), parse_colors=(frames is None))
         if "x_pixels" in attrs.keys() and "y_pixels" in attrs.keys():
             shape = (attrs["x_pixels"], attrs["y_pixels"])
         if "z_offsets" in attrs.keys():
