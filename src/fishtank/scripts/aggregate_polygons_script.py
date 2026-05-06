@@ -22,11 +22,12 @@ def _load_fov_polygons(
     file_pattern="polygons_{fov}.json",
     x_offset_column="x_offset",
     y_offset_column="y_offset",
+    positions=None,
     scale_factor=0.107,
     tolerance=0.5,
     flip_horizontal=False,
     flip_vertical=False,
-    img_size=(2304, 2304),
+    img_size=2304,
 ):
     """Load and rescale polygons for a single FOV."""
     path = Path(path)
@@ -37,11 +38,14 @@ def _load_fov_polygons(
     if flip_horizontal or flip_vertical:
         polygons.geometry = polygons.geometry.scale(
             xfact=-1 if flip_horizontal else 1, yfact=-1 if flip_vertical else 1, origin=(0, 0)
-        ).translate(xoff=img_size[0] if flip_horizontal else 0, yoff=img_size[1] if flip_vertical else 0)
+        ).translate(xoff=img_size if flip_horizontal else 0, yoff=img_size if flip_vertical else 0)
     if scale_factor != 1:
         polygons.geometry = polygons.geometry.affine_transform([scale_factor, 0, 0, scale_factor, 0, 0])
 
-    if x_offset_column is not None:
+    if positions is not None:
+        x, y = positions[fov]
+        polygons.geometry = polygons.geometry.translate(xoff=x, yoff=y)
+    elif x_offset_column is not None:
         polygons.geometry = polygons.geometry.translate(
             xoff=polygons[x_offset_column][0], yoff=polygons[y_offset_column][0]
         )
@@ -119,11 +123,15 @@ def get_parser():
     parser.add_argument("--z_column", type=str, default=None, help="Column containing z-slice. None for 2D polygons")
     parser.add_argument("--x_offset_column", type=str, default="x_offset", help="Column containing x-offset")
     parser.add_argument("--y_offset_column", type=str, default="y_offset", help="Column containing y-offset")
+    parser.add_argument(
+        "--positions", type=parse_path, default=None, help="TSV file with FOV positions (no header, columns: x, y)"
+    )
     parser.add_argument("--scale_factor", type=float, default=0.107, help="Factor for converting pixels to microns")
     parser.add_argument("--tolerance", type=float, default=0.5, help="Tolerance from polygon simplification (microns)")
     parser.add_argument("--save_union", type=bool, default=False, help="Save polygons flattened (unioned) to 2D")
     parser.add_argument("--flip_horizontal", type=bool, default=False, help="Flip polygons horizontally")
     parser.add_argument("--flip_vertical", type=bool, default=False, help="Flip polygons vertically")
+    parser.add_argument("--img_size", type=float, default=2304, help="Image size in pixels (width and height)")
     parser.set_defaults(func=aggregate_polygons)
     return parser
 
@@ -139,11 +147,13 @@ def aggregate_polygons(
     z_column: str | None = None,
     x_offset_column: str = "x_offset",
     y_offset_column: str = "y_offset",
+    positions: str | Path | None = None,
     scale_factor: float = 0.107,
     tolerance: float = 0.5,
     save_union: bool = False,
     flip_horizontal: bool = False,
     flip_vertical: bool = False,
+    img_size: float = 2304,
     **kwargs,
 ):
     """Aggregate polygons from multiple FOVs.
@@ -172,12 +182,17 @@ def aggregate_polygons(
         Column containing x-offset.
     y_offset_column
         Column containing y-offset.
+    positions
+        Path to a two-column (no header) TSV file with x and y positions for each FOV.
+        Row index corresponds to FOV number. When provided, overrides x_offset_column/y_offset_column.
     scale_factor
         Factor for converting pixels to microns.
     tolerance
         Tolerance from polygon simplification (microns).
     save_union
         Save polygons flattened (unioned) to 2D.
+    img_size
+        Image size in pixels (width and height). Used to correct polygon coordinates after flipping.
     """
     # Setup
     logger = logging.getLogger("aggregate_polygons")
@@ -186,18 +201,25 @@ def aggregate_polygons(
         fovs = ft.io.list_fovs(input, file_pattern=file_pattern)
     else:
         fovs = fovs
+    # Load positions file if provided
+    positions_dict = None
+    if positions is not None:
+        pos_df = pd.read_csv(positions, sep=None, engine="python", header=None, names=["x", "y"])
+        positions_dict = {i: (row["x"], row["y"]) for i, row in pos_df.iterrows()}
     # Load Polygons
     logger.info("Loading polygons in parallel.")
     parallel_func = partial(
         _load_fov_polygons,
         path=input,
         file_pattern=file_pattern,
-        x_offset_column=x_offset_column,
-        y_offset_column=y_offset_column,
+        x_offset_column=None if positions_dict is not None else x_offset_column,
+        y_offset_column=None if positions_dict is not None else y_offset_column,
+        positions=positions_dict,
         scale_factor=scale_factor,
         tolerance=tolerance,
         flip_horizontal=flip_horizontal,
         flip_vertical=flip_vertical,
+        img_size=img_size,
     )
     with mp.Pool(mp.cpu_count()) as pool:
         polygons = list(tqdm(pool.imap_unordered(parallel_func, fovs), total=len(fovs)))
@@ -221,7 +243,7 @@ def aggregate_polygons(
     logger.info(f"{len(metadata)} polygons after removing polygons smaller than {min_size}.")
     # Save polygons
     logger.info(f"Saving polygons to {output}")
-    polygons = polygons.drop(columns=["x_offset", "y_offset"]).query("cell in @metadata.cell")
+    polygons = polygons.drop(columns=["x_offset", "y_offset"], errors="ignore").query("cell in @metadata.cell")
     with warnings.catch_warnings():
         warnings.simplefilter("ignore")  # Ignore CRS warning
         polygons.to_file(output, driver="GeoJSON")

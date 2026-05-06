@@ -6,6 +6,37 @@ import fishtank as ft
 
 
 @pytest.mark.slow
+def test_aggregate_polygons_positions(caplog, tmp_path):
+    positions_file = tmp_path / "positions.tsv"
+    # FOV 0 has x_offset=0, y_offset=0; FOV 1 has x_offset=200, y_offset=0
+    positions_file.write_text("0\t0\n200\t0\n")
+    parser = ft.scripts.aggregate_polygons_script.get_parser()
+    args = parser.parse_args(
+        [
+            "--input",
+            "./tests/data/polygons_2d",
+            "--output",
+            str(tmp_path / "polygons_positions.json"),
+            "--min_size",
+            "500",
+            "--scale_factor",
+            "1",
+            "--min_ioa",
+            ".2",
+            "--positions",
+            str(positions_file),
+        ]
+    )
+    with caplog.at_level(logging.INFO):
+        kwargs = vars(args)
+        kwargs.pop("func")
+        ft.scripts.aggregate_polygons(**kwargs)
+    assert "Loaded 20 polygons." in caplog.text
+    assert "16 polygons after fixing overlaps." in caplog.text
+    assert "14 polygons after removing polygons smaller than 500.0." in caplog.text
+
+
+@pytest.mark.slow
 def test_aggregate_polygons_3d(caplog):
     parser = ft.scripts.aggregate_polygons_script.get_parser()
     args = parser.parse_args(
