@@ -34,6 +34,12 @@ def get_parser():
     parser.add_argument(
         "--save_intensities", type=parse_bool, default="False", help="Include spot intensities in output"
     )
+    parser.add_argument(
+        "--positions", type=parse_path, default=None, help="TSV file with FOV positions (no header, columns: x, y)"
+    )
+    parser.add_argument("--flip_horizontal", type=parse_bool, default="False", help="Flip spot x-coordinates")
+    parser.add_argument("--flip_vertical", type=parse_bool, default="False", help="Flip spot y-coordinates")
+    parser.add_argument("--img_size", type=float, default=2304, help="Image size in pixels (width and height)")
     parser.set_defaults(func=decode_spots)
     return parser
 
@@ -56,6 +62,10 @@ def decode_spots(
     normalize_colors: bool = True,
     filter_output: bool = True,
     save_intensities: bool = False,
+    positions: str | Path | None = None,
+    flip_horizontal: bool = False,
+    flip_vertical: bool = False,
+    img_size: float = 2304,
     **kwargs,
 ):
     """Decode spots using specified strategy.
@@ -86,10 +96,24 @@ def decode_spots(
         Exclude spots with distance > max_dist from output.
     save_intensities
         Include spot intensities in output.
+    positions
+        Path to a two-column (no header) TSV file with x and y positions for each FOV.
+        Row index corresponds to FOV number. When provided, overrides global_x/global_y columns.
+    flip_horizontal
+        Flip spot x-coordinates (maps x → img_size - x).
+    flip_vertical
+        Flip spot y-coordinates (maps y → img_size - y).
+    img_size
+        Image size in pixels (width and height). Used to correct coordinates after flipping.
     """
     # Setup
     logger = logging.getLogger("decode_spots")
     logger.info(f"fishtank version: {ft.__version__}")
+    # Load positions file if provided
+    positions_dict = None
+    if positions is not None:
+        pos_df = pd.read_csv(positions, sep=None, engine="python", header=None, names=["x", "y"])
+        positions_dict = {i: (row["x"], row["y"]) for i, row in pos_df.iterrows()}
     # Load strategy
     logger.info(f"Loading decoding strategy from {strategy}")
     em_codebooks = {}
@@ -124,6 +148,19 @@ def decode_spots(
     else:
         spots = pd.read_csv(input)
     logger.info(f"Loaded {len(fovs)} fovs with a total of {len(spots)} spots")
+    # Flip coordinates
+    if flip_horizontal and "x" in spots.columns:
+        spots["x"] = img_size - spots["x"]
+    if flip_vertical and "y" in spots.columns:
+        spots["y"] = img_size - spots["y"]
+    # Apply positions
+    if positions_dict is not None and "fov" in spots.columns:
+        pos_series = pd.DataFrame(positions_dict, index=["x_off", "y_off"]).T
+        pos_series.index.name = "fov"
+        spots = spots.join(pos_series, on="fov")
+        spots["global_x"] = spots["x"] + spots["x_off"]
+        spots["global_y"] = spots["y"] + spots["y_off"]
+        spots.drop(columns=["x_off", "y_off"], inplace=True)
     # Load color usage
     if "{input}" in color_usage:
         color_usage = color_usage.format(input=input)

@@ -649,6 +649,9 @@ def read_mosaic(
     filter: callable = None,
     filter_args: dict = None,
     microns_per_pixel: float | None = None,
+    positions: dict | None = None,
+    flip_horizontal: bool = False,
+    flip_vertical: bool = False,
 ) -> tuple[np.ndarray, np.ndarray]:
     """Read FOV images as a mosaic.
 
@@ -674,6 +677,13 @@ def read_mosaic(
         Function to filter the images with.
     filter_args
         Arguments to pass to the filter function.
+    positions
+        Dict mapping FOV number to (x, y) stage position in microns. When provided,
+        overrides the stage positions read from image metadata.
+    flip_horizontal
+        Flip each FOV image horizontally before stitching.
+    flip_vertical
+        Flip each FOV image vertically before stitching.
 
     Returns
     -------
@@ -697,7 +707,7 @@ def read_mosaic(
         downsample = 4
     # Read images
     imgs = []
-    positions = []
+    stage_positions = []
     for fov in tqdm(fovs, desc=f"Reading mosaic {series}", unit="fov"):
         img, attrs = read_fov(
             path,
@@ -713,12 +723,16 @@ def read_mosaic(
                 img = img[::downsample, ::downsample]
             elif len(img.shape) == 3:
                 img = img[:, ::downsample, ::downsample]
+        if flip_horizontal:
+            img = np.flip(img, axis=-1)
+        if flip_vertical:
+            img = np.flip(img, axis=-2)
         if filter is not None:
             img = filter(img, **filter_args)
         imgs.append(img)
-        positions.append(attrs["stage_position"])
+        stage_positions.append(positions[fov] if positions is not None else attrs["stage_position"])
         if (microns_per_pixel is None) and ("micron_per_pixel" in attrs.keys()):
             microns_per_pixel = attrs["micron_per_pixel"]
     # Create mosaic
-    mosaic, bounds = create_mosaic(imgs, positions, microns_per_pixel * downsample)
+    mosaic, bounds = create_mosaic(imgs, stage_positions, microns_per_pixel * downsample)
     return mosaic, bounds
