@@ -16,6 +16,12 @@ and this project adheres to [Semantic Versioning][].
 
 ### Fixes
 
+## [0.3.7]
+
+### Fixes
+
+- Fix `IndexError` when reading ImageJ hyperstacks stored as a single physical TIFF page (e.g. contiguous multi-frame files from some microscope acquisitions). Falls back to `tif.asarray()` when `tif.pages` has fewer entries than the requested frame index.
+
 ## [0.1.1]
 
 ### Added
