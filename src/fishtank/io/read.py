@@ -488,7 +488,12 @@ def read_img(
             with tiff.TiffFile(path) as tif:
                 pages = tif.pages
                 if isinstance(frame_indices, list | tuple | np.ndarray):
-                    img = np.stack([pages[i].asarray() for i in frame_indices])
+                    if len(pages) <= max(frame_indices):
+                        # ImageJ hyperstacks stored as a single physical page require
+                        # asarray() to access virtual frames; pages[i] only sees page 0.
+                        img = tif.asarray()[np.array(frame_indices)]
+                    else:
+                        img = np.stack([pages[i].asarray() for i in frame_indices])
                 else:
                     img = pages[frame_indices].asarray()
             img = np.squeeze(img)
