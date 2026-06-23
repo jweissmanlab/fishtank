@@ -270,6 +270,18 @@ def _read_frame_table(path: str | pathlib.Path) -> tuple[np.ndarray, list[float]
     return color_order, z_offsets, cz_to_frame, n_rows
 
 
+def _imread(path, plugin=None, **plugin_args):
+    """Call ``skimage.io.imread`` without the deprecated ``plugin`` argument when unset.
+
+    skimage >= 0.25 emits a FutureWarning whenever the ``plugin`` parameter is passed,
+    even as ``None``. fishtank reads pass ``plugin=None`` by default, so only forward it
+    when a plugin is actually requested.
+    """
+    if plugin is not None:
+        return ski.io.imread(path, plugin=plugin, **plugin_args)
+    return ski.io.imread(path, **plugin_args)
+
+
 def read_img(
     path: str | pathlib.Path,
     colors: int | str | list = None,
@@ -468,7 +480,7 @@ def read_img(
         if suffix == ".dax":
             img = read_dax(path, shape=shape, frames=frame_indices, **plugin_args)
         else:
-            raw = ski.io.imread(path, plugin=plugin, **plugin_args)
+            raw = _imread(path, plugin=plugin, **plugin_args)
             img = raw[frame_indices]
     else:
         # Get frame indices for non-sparse (rectangular) case
@@ -498,7 +510,7 @@ def read_img(
                     img = pages[frame_indices].asarray()
             img = np.squeeze(img)
         else:
-            img = ski.io.imread(path, plugin=plugin, **plugin_args)[frame_indices]
+            img = _imread(path, plugin=plugin, **plugin_args)[frame_indices]
             img = np.squeeze(img)
     # Reshape image if necessary
     if n_colors > 1:
