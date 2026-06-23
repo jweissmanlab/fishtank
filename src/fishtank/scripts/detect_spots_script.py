@@ -6,6 +6,7 @@ from pathlib import Path
 import numpy as np
 import pandas as pd
 import skimage as ski
+from scipy.ndimage import median_filter
 
 import fishtank as ft
 
@@ -29,6 +30,63 @@ def _get_filter(name, filter_args):
     else:
         raise ValueError(f"Filter {name} not found in fishtank.filters or skimage.filters")
 
+def _remove_hot_pixels(img, size=3, ratio=5.0, sigma_floor=5.0):
+    """Replace isolated hot/dead pixels with their local median before registration.
+
+    Hot/defective camera pixels sit at FIXED detector positions, so they are identical
+    in every series and dominate phase_cross_correlation -- pinning the estimated drift
+    to [0, 0] when the (bead/fiducial) registration channel is dim. They are isolated
+    single-pixel spikes whose value is far above the *local* median; a real fiducial
+    bead spans several pixels (the PSF) and so sits on a bright neighborhood with a value
+    close to its local median. That difference is what lets us drop hot pixels while
+    leaving beads untouched.
+
+    Why not just clip at a fixed maximum (e.g. value == dtype max)? A fixed cutoff is
+    detector-specific and only catches FULLY SATURATED pixels; a hot pixel reading e.g.
+    12000 on a ~100 background is just as disruptive but slips through. The local-median
+    ratio test below is intensity-agnostic and catches saturated and sub-saturation hot
+    pixels alike, without flagging a real (bright but spatially extended) bead.
+
+    Parameters
+    ----------
+    img
+        2D registration image (a single bead/fiducial frame).
+    size
+        Side length (pixels) of the square window for the local median. 3 isolates
+        single-pixel spikes; larger windows also catch small clusters but risk eroding
+        faint beads.
+    ratio
+        A pixel is flagged when its value exceeds ``ratio`` x its local median. Hot
+        pixels sit on background, so this ratio is large (~10-600 observed); real bead
+        cores sit on a bright neighborhood, so theirs is ~1-2. ratio=5 separates them.
+    sigma_floor
+        Also require the excess over the local median to exceed ``sigma_floor`` times the
+        background-noise standard deviation. This stops faint noise blips on near-zero
+        background (where the ratio alone can be large) from being flagged. Units: sigma.
+
+    Returns
+    -------
+    Copy of ``img`` with hot pixels replaced by their local median (unchanged if none).
+    """
+    local_median = median_filter(img, size=size, mode="nearest").astype(np.float64)
+    excess = img.astype(np.float64) - local_median  # height of each pixel above its neighbours
+
+    # Robust background-noise scale from the spread of `excess`. MAD = median absolute
+    # deviation; unlike the plain std it is not inflated by the few hot pixels / bead
+    # edges we are hunting. For Gaussian noise sigma = 1.4826 * MAD, where
+    # 1.4826 = 1 / norm.ppf(0.75) is the fixed factor converting MAD to a standard
+    # deviation -- giving a hot-pixel-resistant estimate of the noise sigma.
+    mad = float(np.median(np.abs(excess - np.median(excess))))
+    noise_sigma = 1.4826 * mad
+
+    # Hot pixel = isolated spike (value >> local median) that also clears the noise floor.
+    hot = (img > ratio * np.maximum(local_median, 1.0)) & (excess > sigma_floor * noise_sigma)
+    if hot.any():
+        img = img.copy()
+        img[hot] = local_median[hot].astype(img.dtype)
+    return img
+
+
 def _get_reg_img(img, reg_bit, reg_color, channels, reg_z_slice=None, z_drift=False, clip_pct=None):
     """Return the registration image and initialize the drift vector."""
     if reg_color is not None:
@@ -45,6 +103,7 @@ def _get_reg_img(img, reg_bit, reg_color, channels, reg_z_slice=None, z_drift=Fa
         reg_img = reg_img.max(axis=0)
     else:
         reg_img = reg_img.max(axis=(0, 1))
+    reg_img = _remove_hot_pixels(reg_img)
     if clip_pct is not None:
         reg_img = np.minimum(reg_img / np.percentile(reg_img, clip_pct, axis=(-2, -1), keepdims=True), 1)
     return reg_img
@@ -61,6 +120,7 @@ def _load_reg_img(input, fov, series, reg_bit, reg_color, channels, file_pattern
                              z_slices=reg_z_slice,file_pattern=file_pattern)[0]
     if reg_z_slice is None and not z_drift:
         reg_img = reg_img.max(axis=0)
+    reg_img = _remove_hot_pixels(reg_img)
     if clip_pct is not None:
         reg_img = np.minimum(reg_img / np.percentile(reg_img, clip_pct, axis=(-2, -1), keepdims=True), 1)
     return reg_img
