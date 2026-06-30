@@ -53,7 +53,7 @@ def plot_drift(
     drift
         DataFrame with columns ``fov``, ``series``, ``x_drift``, ``y_drift`` and
         optionally ``distance`` (computed from x/y if absent). One row per (fov, round),
-        as written by ``detect-spots`` to ``drift_{fov}.csv``.
+        as written by ``detect-spots`` to ``channels_{fov}.csv``.
     out
         If given, save the figure to this path.
     title

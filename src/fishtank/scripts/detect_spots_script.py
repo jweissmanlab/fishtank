@@ -267,7 +267,6 @@ def detect_spots(
     # Intensity quantification
     logger.info("Quantifying spot intensities")
     filtered_channels = channels.query("bit not in @exclude_bits and bit not in @reg_bit").copy()
-    drift_records = []  # per-round sub-pixel drift, written to drift_{fov}.csv for QC
     for series, series_channels in filtered_channels.groupby("series", sort=False):
         # Read series image
         logger.info(f"Loading series {series}")
@@ -278,9 +277,7 @@ def detect_spots(
         filtered_channels.loc[filtered_channels.series == series, "max_intensity"] = channel_max
         # Get the drift
         series_reg_img = _load_reg_img(input, fov, series, reg_bit, reg_color, channels, file_pattern, reg_z_slice, z_drift, reg_clip_pct)
-        # Sub-pixel registration; recorded at full precision for QC, applied as integer pixels.
-        shift = ski.registration.phase_cross_correlation(reg_img, series_reg_img, upsample_factor=10)[0]
-        drift = np.round(shift).astype(int)
+        drift = ski.registration.phase_cross_correlation(reg_img, series_reg_img)[0].astype(int)
         if z_drift:
             if np.abs(drift[0] - current_drift[0]) > 3:
                 logger.warning(f"Large z drift detected: {drift[0]}. Using previous z drift: {current_drift[0]}")
@@ -295,13 +292,6 @@ def detect_spots(
             drift = current_drift
         current_drift = drift
         logger.info(f"Series drift: {drift}")
-        drift_records.append({
-            "fov": fov,
-            "series": series,
-            "x_drift": round(float(shift[-1]), 2),
-            "y_drift": round(float(shift[-2]), 2),
-            "distance": round(float(np.hypot(shift[-1], shift[-2])), 2),
-        })
         filtered_channels.loc[filtered_channels.series == series, "x_drift"] = drift[-1]
         filtered_channels.loc[filtered_channels.series == series, "y_drift"] = drift[-2]
         if z_drift:
@@ -346,5 +336,4 @@ def detect_spots(
     output.mkdir(parents=True, exist_ok=True)
     spots.to_csv(output / f"spots_{fov}.csv", index=False)
     filtered_channels.to_csv(output / f"channels_{fov}.csv", index=False)
-    pd.DataFrame(drift_records).to_csv(output / f"drift_{fov}.csv", index=False)
     logger.info("Done")

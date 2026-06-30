@@ -19,13 +19,13 @@ def get_parser():
     parser = argparse.ArgumentParser(add_help=False)
     parser.add_argument(
         "-i", "--input", type=parse_path, required=True,
-        help="detect-spots output directory containing drift_*.csv files",
+        help="detect-spots output directory containing channels_*.csv files",
     )
     parser.add_argument(
         "-o", "--output", type=parse_path, default=None,
         help="Output figure path (relative or absolute). Default: <input>/drift_qc.png",
     )
-    parser.add_argument("--pattern", type=str, default="drift_*.csv", help="Glob for per-FOV drift files")
+    parser.add_argument("--pattern", type=str, default="channels_*.csv", help="Glob for per-FOV channels files")
     parser.add_argument("--title", type=str, default="detect-spots drift QC", help="Figure title")
     parser.add_argument(
         "--scatter_max", type=_limit, default=100.0,
@@ -47,7 +47,7 @@ def get_parser():
 def plot_drift(
     input: str | Path,
     output: str | Path = None,
-    pattern: str = "drift_*.csv",
+    pattern: str = "channels_*.csv",
     title: str = "detect-spots drift QC",
     scatter_max: float | str = 100,
     dmax: float | str = 100,
@@ -65,11 +65,11 @@ def plot_drift(
     Parameters
     ----------
     input
-        detect-spots output directory containing drift_{fov}.csv files.
+        detect-spots output directory containing channels_{fov}.csv files.
     output
         Output figure path (relative or absolute). Defaults to <input>/drift_qc.png.
     pattern
-        Glob pattern for the per-FOV drift files.
+        Glob pattern for the per-FOV channels files.
     title
         Figure title.
     scatter_max
@@ -92,7 +92,10 @@ def plot_drift(
     files = sorted(glob.glob(str(Path(input) / pattern)))
     if not files:
         raise FileNotFoundError(f"No files matching {pattern} in {input}")
-    drift = pd.concat([pd.read_csv(f) for f in files], ignore_index=True)
+    # channels_{fov}.csv has one row per channel; keep one drift value per (fov, series).
+    cols = ["fov", "series", "x_drift", "y_drift"]
+    drift = pd.concat([pd.read_csv(f, usecols=cols) for f in files], ignore_index=True)
+    drift = drift.drop_duplicates(subset=["fov", "series"]).reset_index(drop=True)
     ft.pl.plot_drift(
         drift, out=output, title=title, dpi=dpi, scatter_max=scatter_max, dmax=dmax,
         bin_size=bin_size, auto_pct=auto_pct, cmap=cmap, fontsize=fontsize,
