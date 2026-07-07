@@ -36,6 +36,8 @@ dependencies = [
   "seaborn",
   # for debug logging (referenced from the issue template)
   "session-info",
+  # reading .zarr movies (e.g. HAL/storm-control acquisitions)
+  "zarr",
 ]
 optional-dependencies.dev = [
   "pre-commit",
