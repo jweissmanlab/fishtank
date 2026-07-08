@@ -1,24 +1,8 @@
-import shutil
-
 import numpy as np
 import pandas as pd
 import pytest
-import zarr
 
 import fishtank as ft
-
-
-def _write_zarr_movie(path, data):
-    """Write `data` (F, Y, X) as a HAL/storm-control style .zarr movie.
-
-    Creates a group containing a single 3D array named 'data', chunked along the
-    frame axis (chunks=(1, Y, X)) with dtype uint16 -- matching the storm-control
-    ZarrFile writer that fishtank must read.
-    """
-    root = zarr.open_group(str(path), mode="w")
-    arr = root.create_array(name="data", shape=data.shape, chunks=(1, *data.shape[1:]), dtype="uint16")
-    arr[:] = data
-    return path
 
 
 @pytest.fixture()
@@ -29,6 +13,11 @@ def xml_path(img_path):
 @pytest.fixture()
 def dax_path(img_path):
     return img_path / "H0R1" / "Conv_zscan_00.dax"
+
+
+@pytest.fixture()
+def zarr_path(img_path):
+    return img_path / "H0R1" / "Conv_zscan_00.zarr"
 
 
 @pytest.fixture()
@@ -90,9 +79,9 @@ def test_read_dax_frames(dax_path):
         img = ft.io.read_dax(dax_path, frames=[1, 100], shape=(288, 288))
 
 
-def test_read_zarr(dax_path, tmp_path):
+def test_read_zarr(zarr_path, dax_path):
+    # The committed .zarr fixture holds the same camera frames as the .dax fixture.
     raw = ft.io.read_dax(dax_path, shape=(288, 288))  # (25, 288, 288)
-    zarr_path = _write_zarr_movie(tmp_path / "mov.zarr", raw)
     # Full read round-trips the stored data
     img = ft.io.read_zarr(zarr_path)
     assert img.shape == (25, 288, 288)
@@ -109,13 +98,10 @@ def test_read_zarr(dax_path, tmp_path):
         ft.io.read_zarr(zarr_path, frames=[1, 100])
 
 
-def test_read_img_zarr_matches_dax(dax_path, xml_path, tmp_path):
-    # A .zarr movie built from the same camera frames as the .dax fixture, read
-    # through read_img with the same XML sidecar, must be identical to the .dax read
-    # (square sensor => the two on-disk layouts coincide).
-    raw = ft.io.read_dax(dax_path, shape=(288, 288))
-    zarr_path = _write_zarr_movie(tmp_path / "Conv_zscan_00.zarr", raw)
-    shutil.copy(xml_path, tmp_path / "Conv_zscan_00.xml")
+def test_read_img_zarr_matches_dax(zarr_path, dax_path):
+    # The .zarr and .dax fixtures hold the same camera frames and share the XML
+    # sidecar, so read_img must return identical arrays (square sensor => the two
+    # on-disk layouts coincide).
     img_z, attrs_z = ft.io.read_img(zarr_path)
     img_d, attrs_d = ft.io.read_img(dax_path)
     assert img_z.shape == img_d.shape == (5, 5, 288, 288)
@@ -128,11 +114,8 @@ def test_read_img_zarr_matches_dax(dax_path, xml_path, tmp_path):
     assert np.array_equal(img_z, img_d)
 
 
-def test_read_img_zarr_frame_table(dax_path, xml_path, frame_table_path, tmp_path):
+def test_read_img_zarr_frame_table(zarr_path, dax_path, frame_table_path, tmp_path):
     # Frame-table path: zarr read matches dax read, and a row-count mismatch errors.
-    raw = ft.io.read_dax(dax_path, shape=(288, 288))
-    zarr_path = _write_zarr_movie(tmp_path / "Conv_zscan_00.zarr", raw)
-    shutil.copy(xml_path, tmp_path / "Conv_zscan_00.xml")
     img_z, _ = ft.io.read_img(zarr_path, frames=frame_table_path)
     img_d, _ = ft.io.read_img(dax_path, frames=frame_table_path)
     assert np.array_equal(img_z, img_d)

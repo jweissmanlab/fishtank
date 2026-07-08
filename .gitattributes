@@ -1,0 +1,4 @@
+# Zarr test fixtures are chunked binary stores (metadata JSON + compressed chunks).
+# Treat every file under a *.zarr store as binary so no text/EOL conversion is
+# applied on checkout (autocrlf) -- otherwise the compressed chunks get corrupted.
+**/*.zarr/** binary
