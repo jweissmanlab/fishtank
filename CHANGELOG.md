@@ -12,6 +12,8 @@ and this project adheres to [Semantic Versioning][].
 
 ### Added
 
+- Add `--on_the_fly` flag to `detect-spots` for incremental/streaming analysis of experiments whose rounds are processed while still being acquired. Spots are detected once from the reference (and common-bit) series and their positions are frozen; series whose image files are not yet on disk are skipped instead of raising `FileNotFoundError`, and re-running the same command as more rounds arrive resumes from the existing `spots_{fov}.csv` / `channels_{fov}.csv`, quantifying only the newly-arrived series and appending their bit columns. Defaults to `False`, preserving the original all-rounds-present behavior.
+
 ### Changed
 
 ### Fixes
