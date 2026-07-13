@@ -106,6 +106,9 @@ def get_parser():
     parser.add_argument("--ref_mosaic", type=parse_path, default=None, help="Path to precomputed reference mosaic TIFF")
     parser.add_argument("--moving_mosaic", type=parse_path, default=None, help="Path to precomputed moving mosaic TIFF")
     parser.add_argument("--scale_factor", type=float, default=None, help="Scale factor to apply to moving images")
+    parser.add_argument(
+        "--skip_fine", type=bool, default=False, help="Skip fine alignment (optical flow) and use only coarse shift"
+    )
     parser.set_defaults(func=align_experiments)
     return parser
 
@@ -127,6 +130,7 @@ def align_experiments(
     ref_mosaic: str | Path = None,
     moving_mosaic: str | Path = None,
     scale_factor: float | None = None,
+    skip_fine: bool = False,
     **kwargs,
 ):
     """Align experiments using optical flow.
@@ -169,6 +173,8 @@ def align_experiments(
         and z_offset will be ignored.
     scale_factor
         Scale factor in micron per pixel
+    skip_fine
+        Skip fine alignment (optical flow) and use only the coarse shift.
     """
     # Setup
     logger = logging.getLogger("align_experiments")
@@ -241,20 +247,28 @@ def align_experiments(
     combined_mosaic, combined_px = _combined_mosaic(ref_mosaic, moving_mosaic, ref_px, shifted_moving_px)
     _save_mosaic(output, "_coarse", combined_mosaic)
     # Fine alignment
-    tiles, positions = ft.utils.tile_image(combined_mosaic, tile_shape=(1000, 1000))
-    logger.info(f"Computing optical flow with attachment {attachment}.")
-    parallel_func = partial(_compute_optical_flow, attachment=attachment)
-    with mp.Pool(mp.cpu_count()) as pool:
-        flows = list(tqdm(pool.imap_unordered(parallel_func, zip(tiles, positions, strict=False)), total=len(tiles)))
-    flows, positions = zip(*flows, strict=True)
-    flow, _ = ft.utils.create_mosaic(flows, positions, micron_per_pixel=1)
-    # Warp moving mosaic
-    logger.info("Plotting fine alignment.")
-    nr, nc = combined_mosaic[0].shape
-    row_coords, col_coords = np.meshgrid(np.arange(nr), np.arange(nc), indexing="ij")
-    warped = ski.transform.warp(combined_mosaic[1], np.array([row_coords + flow[0], col_coords + flow[1]]), mode="edge")
-    combined_mosaic[1] = warped
-    _save_mosaic(output, "_fine", combined_mosaic)
+    if skip_fine:
+        logger.info("Skipping fine alignment; using coarse shift only.")
+        flow = np.zeros((2, *combined_mosaic[0].shape))
+    else:
+        tiles, positions = ft.utils.tile_image(combined_mosaic, tile_shape=(1000, 1000))
+        logger.info(f"Computing optical flow with attachment {attachment}.")
+        parallel_func = partial(_compute_optical_flow, attachment=attachment)
+        with mp.Pool(mp.cpu_count()) as pool:
+            flows = list(
+                tqdm(pool.imap_unordered(parallel_func, zip(tiles, positions, strict=False)), total=len(tiles))
+            )
+        flows, positions = zip(*flows, strict=True)
+        flow, _ = ft.utils.create_mosaic(flows, positions, micron_per_pixel=1)
+        # Warp moving mosaic
+        logger.info("Plotting fine alignment.")
+        nr, nc = combined_mosaic[0].shape
+        row_coords, col_coords = np.meshgrid(np.arange(nr), np.arange(nc), indexing="ij")
+        warped = ski.transform.warp(
+            combined_mosaic[1], np.array([row_coords + flow[0], col_coords + flow[1]]), mode="edge"
+        )
+        combined_mosaic[1] = warped
+        _save_mosaic(output, "_fine", combined_mosaic)
     # Calculate weighted average shift for each tile
     logger.info("Calculating mean shift for each tile.")
     weighted_flow = np.concatenate([flow, combined_mosaic[[0]]], axis=0)  # weight flow by moving mosaic
