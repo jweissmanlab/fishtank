@@ -37,5 +37,36 @@ def test_detect_spots_3d(caplog):
     assert "Saving results in tests/output/spots" in caplog.text
 
 
+def test_detect_spots_scale_factor_mismatch_warns(caplog):
+    parser = ft.scripts.detect_spots_script.get_parser()
+    args = parser.parse_args(
+        [
+            "-i",
+            "./tests/data/merfish",
+            "-o",
+            "./tests/output/spots",
+            "--fov",
+            "0",
+            "--ref_series",
+            "H0R1",
+            "--common_bits",
+            "r52,r53",
+            "--filter",
+            "unsharp_mask",
+            "--filter_args",
+            "sigma=10",
+            "--z_drift",
+            "True",
+            "--scale_factor",
+            "0.09",  # XML objective resolution is 0.107
+        ]
+    )
+    with caplog.at_level(logging.WARNING):
+        kwargs = vars(args)
+        kwargs.pop("func")
+        ft.scripts.detect_spots(**kwargs)
+    assert "does not match the objective resolution" in caplog.text
+
+
 if __name__ == "__main__":
     pytest.main(["-v", __file__])
