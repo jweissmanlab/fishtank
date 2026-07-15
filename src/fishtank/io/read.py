@@ -278,8 +278,6 @@ def read_img(
     shape: tuple = None,
     color_order: list = None,
     frames: str | pathlib.Path = None,
-    plugin: str = None,
-    **plugin_args,
 ) -> tuple[np.ndarray, dict]:
     """Read image file.
 
@@ -302,10 +300,6 @@ def read_img(
         The CSV must have an index column (frame index) and columns 'color' and 'z'.
         Rows with NaN color are treated as blank frames and skipped.
         When provided, overrides XML-based frame metadata for color/z mapping.
-    plugin
-        Name of skimage plugin used to load image if not dax format.
-    plugin_args
-        Passed to the given plugin
 
     Returns
     -------
@@ -466,9 +460,9 @@ def read_img(
         n_colors = len(colors_arr)
         # Load image
         if suffix == ".dax":
-            img = read_dax(path, shape=shape, frames=frame_indices, **plugin_args)
+            img = read_dax(path, shape=shape, frames=frame_indices)
         else:
-            raw = ski.io.imread(path, plugin=plugin, **plugin_args)
+            raw = ski.io.imread(path)
             img = raw[frame_indices]
     else:
         # Get frame indices for non-sparse (rectangular) case
@@ -483,8 +477,8 @@ def read_img(
             frame_indices = np.arange(z_max * len(color_order)) if z_max is not None else None
         # Load image
         if suffix == ".dax":
-            img = read_dax(path, shape=shape, frames=frame_indices, **plugin_args)
-        elif suffix in [".tif", ".tiff"] and plugin is None:
+            img = read_dax(path, shape=shape, frames=frame_indices)
+        elif suffix in [".tif", ".tiff"]:
             with tiff.TiffFile(path) as tif:
                 pages = tif.pages
                 if isinstance(frame_indices, list | tuple | np.ndarray):
@@ -498,7 +492,7 @@ def read_img(
                     img = pages[frame_indices].asarray()
             img = np.squeeze(img)
         else:
-            img = ski.io.imread(path, plugin=plugin, **plugin_args)[frame_indices]
+            img = ski.io.imread(path)[frame_indices]
             img = np.squeeze(img)
     # Reshape image if necessary
     if n_colors > 1:

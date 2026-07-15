@@ -44,6 +44,11 @@ def main():
     subparsers.add_parser(
         "mosaic", parents=[scripts.mosaic_script.get_parser()], help="Create a mosaic from a set of image files"
     )
+    subparsers.add_parser(
+        "plot-drift",
+        parents=[scripts.plot_drift_script.get_parser()],
+        help="Plot per-round/per-fov drift QC from detect-spots output",
+    )
 
     # Parse arguments and dispatch the function
     args = parser.parse_args()
