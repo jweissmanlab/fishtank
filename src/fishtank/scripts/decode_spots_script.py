@@ -103,7 +103,7 @@ def decode_spots(
             decoding_bits.update(set(file.columns.values))
             if strategy["method"] == "expectation_maximization":
                 whitelist = strategy.get("whitelist", None)
-                if whitelist is not None:
+                if whitelist is not None and whitelist != ' ':
                     logger.info(f"Using whitelist for {strategy['name']}")
                     whitelist = pd.read_csv(whitelist, sep="\t", header=None)[0].values
                     file = file.loc[whitelist, :].copy()
