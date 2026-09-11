@@ -142,6 +142,7 @@ def cellpose(
     channels = channels.set_index("bit").loc[use_channels, :].reset_index()
     img, attrs = ft.io.read_fov(input, fov, channels=channels, file_pattern=file_pattern, z_slices=z_slices)
     logger.info(f"Loaded image with shape: {img.shape}")
+    logger.info(f"Loaded attrs: {attrs}")
     # Correct illumination
     if corrections is not None:
         logger.info(f"Correcting illumination with {corrections}")
@@ -182,9 +183,17 @@ def cellpose(
         cellprob_threshold=cellprob_threshold,
         do_3D=do_3D,
         channel_axis=0 if img.ndim >= 3 else None,
-        z_axis=1 if img.ndim == 4 else None,
+        z_axis=1 if img.ndim == 4 else 0,
         **model_args,
     )[0]
+    # cellpose (>=4.0.1) rescales the z-axis internally when anisotropy is set for do_3D,
+    # and no longer resizes the output masks back down (see "Resizing is deprecated in v4.0.1+").
+    # Resize back to the input z-depth so z indices line up with z_offsets below.
+    if do_3D and img.ndim == 4 and masks.shape[0] != img.shape[1]:
+        logger.info(f"Resizing masks from z-depth {masks.shape[0]} back to input z-depth {img.shape[1]}")
+        masks = ski.transform.resize(
+            masks, (img.shape[1],) + masks.shape[1:], order=0, preserve_range=True, anti_aliasing=False
+        ).astype(masks.dtype)
     # Clear border
     if clear_border:
         logger.info("Clearing border")
