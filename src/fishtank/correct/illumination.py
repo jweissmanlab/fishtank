@@ -2,6 +2,7 @@ from pathlib import Path
 
 import numpy as np
 
+from logging import getLogger
 
 def illumination(
     img: np.ndarray, colors: list | np.ndarray | int, corr_path: str | Path, transpose: bool = True, flip: bool = True
@@ -35,6 +36,11 @@ def illumination(
     # Check inputs
     if isinstance(colors, int):
         colors = [colors]
+        
+    logger = getLogger("fishtank.correct.illumination")
+    logger.info(f"Illumination correction called with img shape: {img.shape}, colors: {colors}, corr_path: {corr_path}, transpose: {transpose}, flip: {flip}")
+    print("**", img.shape, colors)
+    
     if len(colors) > 1 and len(colors) != shape[0]:
         raise ValueError("The length of colors must equal the number channels in the image.")
     # Correct illumination
