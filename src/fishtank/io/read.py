@@ -6,6 +6,8 @@ from xml.etree import ElementTree as xml
 import numpy as np
 import pandas as pd
 import skimage as ski
+import tifffile as tiff
+from tqdm.auto import tqdm
 
 from fishtank.utils import create_mosaic, determine_fov_format
 
@@ -17,7 +19,7 @@ def _xml_to_dict(element):
     return {child.tag: _xml_to_dict(child) for child in element}
 
 
-def read_xml(path: str | pathlib.Path, parse: bool = True) -> dict:
+def read_xml(path: str | pathlib.Path, parse: bool = True, parse_colors: bool = True) -> dict:
     """Read MERFISH formatted xml file.
 
     Parameters
@@ -26,6 +28,11 @@ def read_xml(path: str | pathlib.Path, parse: bool = True) -> dict:
         Path to xml file.
     parse
         If True, parse relevant fields.
+    parse_colors
+        If True, parse color and frame metadata from the shutter configuration
+        string and include ``colors`` and ``frames_per_color`` in the returned
+        dict.  Set to False when a frame table will supply color metadata
+        instead, to avoid errors from non-standard shutter filenames.
 
     Returns
     -------
@@ -43,21 +50,32 @@ def read_xml(path: str | pathlib.Path, parse: bool = True) -> dict:
     attrs["x_pixels"] = int(tree["camera1"]["x_pixels"])
     attrs["y_pixels"] = int(tree["camera1"]["y_pixels"])
     attrs["stage_position"] = [float(i) for i in tree["acquisition"]["stage_position"].split(",")]
-    attrs["number_frames"] = int(tree["acquisition"]["number_frames"])
+    frames = int(tree["acquisition"]["number_frames"])
+    attrs["number_frames"] = frames
     z_offsets = []
+    z_positions = []
     for z_offset in tree["focuslock"]["hardware_z_scan"]["z_offsets"].split(","):
+        z_positions.append(float(z_offset))
         if float(z_offset) not in z_offsets:
             z_offsets.append(float(z_offset))
     attrs["z_offsets"] = z_offsets
-    shutters_str = tree["illumination"]["shutters"]
-    if "shutter_" in  shutters_str:
-        colors_str = re.search(r"shutter_([\d_]+)_s", shutters_str).group(1)
-        attrs["colors"] = list(map(int, colors_str.split("_")))
-    elif re.search(r'f\d+', shutters_str):
-        matches = re.findall(r'(\d+)(?=f\d+)', shutters_str)
-        attrs["colors"] = list(map(int, matches))
-    else:
-        raise ValueError(f"Cannot parse colors from shutter string: {shutters_str}")
+    attrs["z_positions"] = z_positions
+    if parse_colors:
+        shutters_str = tree["illumination"]["shutters"]
+        # Pattern 1: shutter[_config]_488_560_650_s... (underscore-delimited digit list)
+        m = re.search(r"shutter(?:_config)?_([\d_]+)_s", shutters_str)
+        if m:
+            colors_str = m.group(1)
+            attrs["colors"] = list(map(int, colors_str.split("_")))
+            attrs["frames_per_color"] = [frames // len(attrs["colors"]) for _ in attrs["colors"]]
+        else:
+            # Pattern 2: 488f1-650f25-750f25 (each color followed by its frame count)
+            color_frame_matches = re.findall(r"(\d+)f(\d+)", shutters_str)
+            if color_frame_matches:
+                attrs["colors"] = [int(c) for c, _ in color_frame_matches]
+                attrs["frames_per_color"] = [int(f) for _, f in color_frame_matches]
+            else:
+                raise ValueError(f"Cannot parse colors from shutter string: {shutters_str}")
     return attrs
 
 
@@ -86,6 +104,7 @@ def list_fovs(path: str | pathlib.Path, file_pattern: str = "{series}/Conv_zscan
         series_list = [""]
 
     for series in series_list:
+        file_pattern = re.sub(r"\{fov:[^}]+\}", "{fov}", file_pattern)
         fov_pattern = file_pattern.format(series=series, fov="*")
         prefix, suffix = fov_pattern.split("*")
         fov_files = list(path.glob(fov_pattern))
@@ -135,6 +154,122 @@ def read_dax(
     return img.reshape(n_frames, *shape)
 
 
+def _reconstruct_sparse_frame_map(
+    z_positions: list[float],
+    color_order: np.ndarray,
+    frames_per_color: list[int],
+) -> tuple[list[float], np.ndarray, dict[tuple[int, int], int]]:
+    """
+    Interleaved acquisition reconstruction.
+
+    Assumptions:
+      - z_positions defines acquisition order; identical contiguous values form a z-run.
+      - Within each z-run, frames are acquired in color_order, skipping colors whose
+        remaining frame budget is 0.
+      - frames_per_color gives TOTAL frames acquired for each color across the whole stack.
+      - (color, z_index) appears at most once (one frame per color per z plane).
+    """
+    z_positions = list(map(float, z_positions))
+    if len(frames_per_color) != len(color_order):
+        raise ValueError(
+            f"frames_per_color length ({len(frames_per_color)}) must match " f"number of colors ({len(color_order)})."
+        )
+    # Discard extra frames
+    n_frames = np.sum(frames_per_color)
+    z_positions = z_positions[:n_frames]
+    if sum(frames_per_color) != n_frames:
+        raise ValueError(
+            f"Inconsistent metadata: sum(frames_per_color)={sum(frames_per_color)} " f"but len(z_positions)={n_frames}."
+        )
+    # Build z planes in acquisition order (by change points)
+    z_planes: list[float] = []
+    run_starts: list[int] = []
+    last = object()
+    for i, z in enumerate(z_positions):
+        if z != last:
+            z_planes.append(z)
+            run_starts.append(i)
+            last = z
+    run_starts.append(n_frames)  # sentinel end
+
+    remaining = [int(n) for n in frames_per_color]
+    frame_colors = np.empty(n_frames, dtype=color_order.dtype)
+
+    # Assign colors within each z-run, restarting scan each z plane
+    for r in range(len(z_planes)):
+        start = run_starts[r]
+        end = run_starts[r + 1]
+        run_len = end - start
+        # build the sequence of colors that can still be acquired at this z plane
+        available = [idx for idx, rem in enumerate(remaining) if rem > 0]
+        if run_len > len(available):
+            raise ValueError(
+                f"Inconsistent metadata: z plane {r} requires {run_len} frames, "
+                f"but only {len(available)} colors have remaining frames."
+            )
+        # Acquire in color_order, skipping exhausted colors
+        write_i = start
+        for ci in range(len(color_order)):
+            if remaining[ci] <= 0:
+                continue
+            frame_colors[write_i] = color_order[ci]
+            remaining[ci] -= 1
+            write_i += 1
+            if write_i == end:
+                break
+        if write_i != end:
+            raise ValueError(
+                f"Inconsistent metadata: did not fill z-run {r} " f"(filled {write_i-start} of {run_len})."
+            )
+    if any(rem != 0 for rem in remaining):
+        raise ValueError("Inconsistent metadata: did not consume frames_per_color exactly.")
+    # Map (color, z_index) -> frame_index
+    z_index_of_plane = {z: idx for idx, z in enumerate(z_planes)}
+    cz_to_frame: dict[tuple[int, int], int] = {}
+    for i, (z, c) in enumerate(zip(z_positions, frame_colors, strict=False)):
+        zi = z_index_of_plane[float(z)]
+        key = (int(c), zi)
+        if key in cz_to_frame:
+            raise ValueError(f"Inconsistent metadata: multiple frames for color={int(c)} at z_index={zi}.")
+        cz_to_frame[key] = i
+
+    return z_planes, frame_colors, cz_to_frame
+
+
+def _read_frame_table(path: str | pathlib.Path) -> tuple[np.ndarray, list[float], dict, int]:
+    """Read a frame table CSV and build a (color, z_index) -> frame_index mapping.
+
+    Parameters
+    ----------
+    path
+        Path to frame table CSV with an index column (frame index) and columns 'color' and 'z'.
+        Rows with NaN color are treated as blank frames and skipped.
+
+    Returns
+    -------
+    color_order
+        Unique colors in order of first appearance, as an integer array.
+    z_offsets
+        Unique z values in order of first appearance.
+    cz_to_frame
+        Dict mapping (color_int, z_index) to frame_index.
+    n_rows
+        Total number of rows in the table (including blank frames).
+    """
+    ft = pd.read_csv(path, index_col=0)
+    n_rows = len(ft)
+    ft = ft.dropna(subset=["color"])
+    color_order = np.array(list(dict.fromkeys(ft["color"].astype(int).tolist())))
+    z_offsets = list(dict.fromkeys(ft["z"].tolist()))
+    z_index_of = {z: i for i, z in enumerate(z_offsets)}
+    cz_to_frame: dict[tuple[int, int], int] = {}
+    for frame_idx, row in ft.iterrows():
+        c = int(row["color"])
+        zi = z_index_of[float(row["z"])]
+        cz_to_frame[(c, zi)] = int(frame_idx)
+    return color_order, z_offsets, cz_to_frame, n_rows
+
+
 def read_img(
     path: str | pathlib.Path,
     colors: int | str | list = None,
@@ -142,6 +277,7 @@ def read_img(
     z_project: bool = False,
     shape: tuple = None,
     color_order: list = None,
+    frames: str | pathlib.Path = None,
     plugin: str = None,
     **plugin_args,
 ) -> tuple[np.ndarray, dict]:
@@ -161,6 +297,11 @@ def read_img(
         Shape of a single frame.
     color_order
         Order of colors in the image.
+    frames
+        Path to a frame table CSV specifying the color and z-position of each frame.
+        The CSV must have an index column (frame index) and columns 'color' and 'z'.
+        Rows with NaN color are treated as blank frames and skipped.
+        When provided, overrides XML-based frame metadata for color/z mapping.
     plugin
         Name of skimage plugin used to load image if not dax format.
     plugin_args
@@ -176,12 +317,15 @@ def read_img(
     # Setup
     path = pathlib.Path(path)
     suffix = path.suffix.lower()
-    frames = None
+    frame_indices = None
     z_max = None
     n_colors = 1
+    # Check file exists
+    if not path.exists():
+        raise FileNotFoundError(f"File {path} does not exist")
     # Attempt to load attributes
     if os.path.exists(path.with_suffix(".xml")):
-        attrs = read_xml(path.with_suffix(".xml"))
+        attrs = read_xml(path.with_suffix(".xml"), parse_colors=(frames is None))
         if "x_pixels" in attrs.keys() and "y_pixels" in attrs.keys():
             shape = (attrs["x_pixels"], attrs["y_pixels"])
         if "z_offsets" in attrs.keys():
@@ -191,6 +335,54 @@ def read_img(
             n_colors = len(attrs["colors"])
     else:
         attrs = {}
+    # If frame table provided, override color/z metadata
+    cz_to_frame = None
+    if frames is not None:
+        color_order_ft, z_offsets_ft, cz_to_frame, n_table_rows = _read_frame_table(frames)
+        # Validate that the frame table covers exactly the frames in the image
+        if "number_frames" in attrs:
+            n_image_frames = attrs["number_frames"]
+            if n_table_rows != n_image_frames:
+                raise ValueError(
+                    f"Frame table has {n_table_rows} rows but image has {n_image_frames} frames."
+                )
+        elif suffix == ".dax":
+            try:
+                img_flat = np.fromfile(path, dtype="uint16", count=-1)
+                img_flat.reshape(n_table_rows, -1)
+            except ValueError:
+                raise ValueError(  # noqa: B904
+                    f"Frame table has {n_table_rows} rows but image size {len(img_flat)} "
+                    f"pixels is not divisible by {n_table_rows}."
+                )
+            del img_flat
+        color_order = color_order_ft
+        attrs["colors"] = color_order.tolist()
+        attrs["z_offsets"] = z_offsets_ft
+        z_max = len(z_offsets_ft)
+        n_colors = len(color_order)
+    # Process colors selection (values from color_order)
+    if colors is not None:
+        if color_order is None:
+            raise ValueError("Cannot select colors without xml file or color_order specified")
+        if isinstance(colors, int) or isinstance(colors, str):
+            colors = [colors]
+        attrs["colors"] = colors
+        req_colors = np.array(colors).astype(np.array(color_order).dtype)
+        if not np.all(np.isin(req_colors, np.array(color_order))):
+            missing = np.setdiff1d(req_colors, np.array(color_order))
+            raise ValueError(f"Color {missing} not found in image colors {np.array(color_order)}")
+        colors_arr = req_colors
+        color_slices = np.array([np.where(color_order == c)[0][0] for c in colors_arr])
+        n_colors = len(colors_arr)
+    else:
+        colors_arr = np.array(color_order) if color_order is not None else None
+    # Discard extra frames (XML-based only; skip when frame table is provided)
+    frames_per_color = np.array(attrs.get("frames_per_color", []))
+    if frames_per_color.size > 0 and cz_to_frame is None:
+        attrs["z_positions"] = attrs["z_positions"][: np.sum(frames_per_color)]
+        attrs["z_offsets"] = np.array(attrs["z_offsets"])[: np.max(frames_per_color)].tolist()
+        z_max = len(attrs["z_offsets"])
     # Process z-slice selection
     if z_slices is not None:
         if z_max is None:
@@ -199,42 +391,127 @@ def read_img(
             z_slices = [z_slices]
         z_slices = np.array(z_slices)
         attrs["z_offsets"] = np.array(attrs["z_offsets"])[z_slices].astype(float).tolist()
-    # Process color selection
-    if colors is not None:
-        if color_order is None:
-            raise ValueError("Cannot select colors without xml file or color_order specified")
-        if isinstance(colors, int) or isinstance(colors, str):
-            colors = [colors]
-        attrs["colors"] = colors
-        colors = np.array(colors).astype(color_order.dtype)
-        if not np.all(np.isin(colors, color_order)):
-            missing = np.setdiff1d(colors, color_order)
-            raise ValueError(f"Color {missing} not found in image colors {color_order}")
-        color_slices = np.array([np.where(color_order == c)[0][0] for c in colors])
-        n_colors = len(colors)
-    # Get frames
-    if z_slices is not None or colors is not None:
-        frames = np.arange(z_max * len(color_order)).reshape(z_max, len(color_order))
-        if z_slices is not None:
-            frames = np.take(frames, z_slices, axis=0)
-        if colors is not None:
-            frames = np.take(frames, color_slices, axis=1)
-        frames = frames.flatten()
-    # Load image
-    if suffix == ".dax":
-        img = read_dax(path, shape=shape, frames=frames, **plugin_args)
+    # Determine whether to use the sparse/frame-table lookup path
+    xml_sparse = frames_per_color.size > 0 and frames_per_color.min() != frames_per_color.max()
+    is_sparse = xml_sparse or (cz_to_frame is not None)
+    if is_sparse:
+        if cz_to_frame is None:
+            # XML-based sparse: reconstruct frame map
+            z_planes, _, cz_to_frame = _reconstruct_sparse_frame_map(
+                z_positions=attrs["z_positions"],
+                color_order=np.array(color_order),
+                frames_per_color=frames_per_color,
+            )
+            z_max = len(z_planes)
+        # Intelligently infer the unspecified axis from cz_to_frame
+        if z_slices is None and colors is not None:
+            # Infer z_slices: indices where ALL specified colors have frames
+            z_slices = np.array(
+                sorted(zi for zi in range(z_max) if all((int(c), zi) in cz_to_frame for c in colors_arr)),
+                dtype=int,
+            )
+            if len(z_slices) == 0:
+                raise ValueError(
+                    f"No z-slices exist where all specified colors {colors_arr.tolist()} have frames."
+                )
+            attrs["z_offsets"] = np.array(attrs["z_offsets"])[z_slices].astype(float).tolist()
+        elif z_slices is not None and colors is None:
+            # Infer colors: colors that have frames at ALL specified z-slices
+            all_colors_in_map = list(dict.fromkeys(c for c, _ in cz_to_frame))
+            colors_arr = np.array(
+                [c for c in all_colors_in_map if all((c, int(zi)) in cz_to_frame for zi in z_slices)]
+            )
+            n_colors = len(colors_arr)
+            if n_colors == 0:
+                raise ValueError(
+                    f"No colors have frames at all specified z-slices {z_slices.tolist()}."
+                )
+            attrs["colors"] = colors_arr.tolist()
+        elif z_slices is None and colors is None:
+            # Neither specified: error if ragged, otherwise load everything
+            n_expected = len(color_order) * z_max if color_order is not None else 0
+            if len(cz_to_frame) < n_expected:
+                raise ValueError(
+                    "This image has ragged (non-rectangular) color-by-z acquisition. "
+                    "You must specify either 'colors' or 'z_slices' to read it."
+                )
+            z_slices = np.arange(z_max, dtype=int)
+            if colors_arr is None:
+                colors_arr = np.array(color_order)
+                n_colors = len(colors_arr)
+        # Both specified: build frame list and validate all pairs exist
+        frames_list: list[int] = []
+        missing_pairs: list[tuple[int, int]] = []
+        for zi in z_slices.tolist():
+            for c in colors_arr.tolist():
+                key = (int(c), int(zi))
+                if key not in cz_to_frame:
+                    missing_pairs.append(key)
+                else:
+                    frames_list.append(cz_to_frame[key])
+        if missing_pairs:
+            by_color: dict[int, list[int]] = {}
+            for c, zi in missing_pairs:
+                by_color.setdefault(c, []).append(zi)
+            detail = ", ".join(
+                f"{c}: missing z_slices {sorted(set(zis))}"
+                for c, zis in sorted(by_color.items(), key=lambda x: x[0])
+            )
+            raise ValueError(
+                "Invalid (colors, z_slices) selection for this image. "
+                f"Requested some color/z combinations that do not exist: {detail}."
+            )
+        frame_indices = np.array(frames_list, dtype=int)
+        attrs["colors"] = colors_arr.tolist()
+        n_colors = len(colors_arr)
+        # Load image
+        if suffix == ".dax":
+            img = read_dax(path, shape=shape, frames=frame_indices, **plugin_args)
+        else:
+            raw = ski.io.imread(path, plugin=plugin, **plugin_args)
+            img = raw[frame_indices]
     else:
-        img = ski.io.imread(path, plugin=plugin, **plugin_args)[frames]
+        # Get frame indices for non-sparse (rectangular) case
+        if z_slices is not None or colors is not None:
+            frame_indices = np.arange(z_max * len(color_order)).reshape(z_max, len(color_order))
+            if z_slices is not None:
+                frame_indices = np.take(frame_indices, z_slices, axis=0)
+            if colors is not None:
+                frame_indices = np.take(frame_indices, color_slices, axis=1)
+            frame_indices = frame_indices.flatten()
+        else:
+            frame_indices = np.arange(z_max * len(color_order)) if z_max is not None else None
+        # Load image
+        if suffix == ".dax":
+            img = read_dax(path, shape=shape, frames=frame_indices, **plugin_args)
+        elif suffix in [".tif", ".tiff"] and plugin is None:
+            with tiff.TiffFile(path) as tif:
+                pages = tif.pages
+                if isinstance(frame_indices, list | tuple | np.ndarray):
+                    if len(pages) <= max(frame_indices):
+                        # ImageJ hyperstacks stored as a single physical page require
+                        # asarray() to access virtual frames; pages[i] only sees page 0.
+                        img = tif.asarray()[np.array(frame_indices)]
+                    else:
+                        img = np.stack([pages[i].asarray() for i in frame_indices])
+                else:
+                    img = pages[frame_indices].asarray()
+            img = np.squeeze(img)
+        else:
+            img = ski.io.imread(path, plugin=plugin, **plugin_args)[frame_indices]
+            img = np.squeeze(img)
     # Reshape image if necessary
     if n_colors > 1:
         img = np.reshape(img, (n_colors, img.shape[0] // n_colors, *img.shape[1:]), order="F")
     # Apply transpose and flip operations
-    if attrs["transpose"]:
+    if suffix == ".dax" and attrs.get("transpose", False):
         img = img.swapaxes(-1, -2)
-    if attrs["flip_horizontal"]:
+    if attrs.get("flip_horizontal", False):
         img = np.flip(img, axis=-1)
-    if attrs["flip_vertical"]:
+    if attrs.get("flip_vertical", False):
         img = np.flip(img, axis=-2)
+    if suffix != ".dax" and attrs.get("transpose", False):  # transpose second for tif image
+        img = img.swapaxes(-1, -2)
     # Z-project image if necessary
     if z_project:
         img = img.max(axis=-3)
@@ -253,10 +530,13 @@ def read_color_usage(path: str | pathlib.Path) -> pd.DataFrame:
     -------
     channels
         a DataFrame with columns "series", "color", and "bit" for each channel.
+        If the CSV contains a "frames" column, the output also includes a "frames"
+        column with the path to the frame table CSV for each series.
     """
     color_usage = pd.read_csv(path)
     color_usage = color_usage.rename(columns={color_usage.columns[0]: "series"})
-    channels = color_usage.melt(id_vars="series", var_name="color", value_name="bit")
+    id_vars = ["series"] + (["frames"] if "frames" in color_usage.columns else [])
+    channels = color_usage.melt(id_vars=id_vars, var_name="color", value_name="bit")
     channels["color_order"] = channels["color"].factorize()[0]
     channels["order"] = channels["series"].factorize()[0]
     channels = channels.sort_values(["order", "color_order"]).drop(columns=["color_order", "order"])
@@ -311,31 +591,41 @@ def read_fov(
     if series is not None:
         if isinstance(series, int) or isinstance(series, str):
             series = [series]
-        file_pattern = determine_fov_format(path, fov=fov, series=series[0], file_pattern=file_pattern)
+        if file_pattern != "{series}":
+            file_pattern = determine_fov_format(path, fov=fov, series=series[0], file_pattern=file_pattern)
         for s in series:
-            img, attr = read_img(
-                path / file_pattern.format(series=s, fov=fov), z_slices=z_slices, z_project=z_project, colors=colors
-            )
+            file = path / file_pattern.format(series=s, fov=fov).format(fov=fov)
+            img, attr = read_img(file, z_slices=z_slices, z_project=z_project, colors=colors)
             imgs.append(img)
             attrs.append(attr)
     # Load images given channels df
     elif channels is not None:
         if colors is not None:
             channels = channels.query("color in @colors")
-        file_pattern = determine_fov_format(
-            path, fov=fov, series=channels["series"].values[0], file_pattern=file_pattern
-        )
+        if file_pattern != "{series}":
+            file_pattern = determine_fov_format(
+                path, fov=fov, series=channels["series"].values[0], file_pattern=file_pattern
+            )
         for s, s_channels in channels.groupby("series", sort=False):
+            file = path / file_pattern.format(series=s, fov=fov).format(fov=fov)
+            frame_table = None
+            if "frames" in s_channels.columns:
+                ft_val = s_channels["frames"].iloc[0]
+                if pd.notna(ft_val):
+                    frame_table = ft_val
             img, attr = read_img(
-                path / file_pattern.format(series=s, fov=fov),
+                file,
                 colors=s_channels["color"].values,
                 z_slices=z_slices,
                 z_project=z_project,
+                frames=frame_table,
             )
             imgs.append(img)
             attrs.append(attr)
     # Reshape images
-    if len(imgs) > 1:
+    if len(imgs) > 1 and len(imgs[0].shape) > 2:
+        imgs = np.concatenate(imgs, axis=0)
+    elif len(imgs) > 1 and len(imgs[0].shape) == 2:
         imgs = np.stack(imgs, axis=0)
     else:
         imgs = imgs[0]
@@ -363,6 +653,10 @@ def read_mosaic(
     downsample: int | bool = 4,
     filter: callable = None,
     filter_args: dict = None,
+    microns_per_pixel: float | None = None,
+    positions: dict | None = None,
+    flip_horizontal: bool = False,
+    flip_vertical: bool = False,
 ) -> tuple[np.ndarray, np.ndarray]:
     """Read FOV images as a mosaic.
 
@@ -388,6 +682,13 @@ def read_mosaic(
         Function to filter the images with.
     filter_args
         Arguments to pass to the filter function.
+    positions
+        Dict mapping FOV number to (x, y) stage position in microns. When provided,
+        overrides the stage positions read from image metadata.
+    flip_horizontal
+        Flip each FOV image horizontally before stitching.
+    flip_vertical
+        Flip each FOV image vertically before stitching.
 
     Returns
     -------
@@ -411,19 +712,32 @@ def read_mosaic(
         downsample = 4
     # Read images
     imgs = []
-    positions = []
-    for fov in fovs:
-        img, attrs = read_fov(path, series=series, fov=fov, colors=colors, z_slices=z_slices, z_project=z_project)
+    stage_positions = []
+    for fov in tqdm(fovs, desc=f"Reading mosaic {series}", unit="fov"):
+        img, attrs = read_fov(
+            path,
+            series=series,
+            fov=fov,
+            colors=colors,
+            z_slices=z_slices,
+            z_project=z_project,
+            file_pattern=file_pattern,
+        )
         if downsample > 1:
             if len(img.shape) == 2:
                 img = img[::downsample, ::downsample]
             elif len(img.shape) == 3:
                 img = img[:, ::downsample, ::downsample]
+        if flip_horizontal:
+            img = np.flip(img, axis=-1)
+        if flip_vertical:
+            img = np.flip(img, axis=-2)
         if filter is not None:
             img = filter(img, **filter_args)
         imgs.append(img)
-        positions.append(attrs["stage_position"])
-        microns_per_pixel = attrs["micron_per_pixel"] * downsample
+        stage_positions.append(positions[fov] if positions is not None else attrs["stage_position"])
+        if (microns_per_pixel is None) and ("micron_per_pixel" in attrs.keys()):
+            microns_per_pixel = attrs["micron_per_pixel"]
     # Create mosaic
-    mosaic, bounds = create_mosaic(imgs, positions, microns_per_pixel)
+    mosaic, bounds = create_mosaic(imgs, stage_positions, microns_per_pixel * downsample)
     return mosaic, bounds

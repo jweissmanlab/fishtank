@@ -9,7 +9,7 @@ from ._utils import parse_path
 def get_parser():
     """Get parser for fovs script"""
     parser = argparse.ArgumentParser(add_help=False)
-    parser.add_argument("--input", type=parse_path, required=True, help="Input file directory")
+    parser.add_argument("-i", "--input", type=parse_path, required=True, help="Input file directory")
     parser.add_argument(
         "--file_pattern", type=str, default="{series}/Conv_zscan_{fov}.dax", help="Naming pattern for image files"
     )
