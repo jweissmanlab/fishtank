@@ -623,10 +623,15 @@ def read_fov(
             imgs.append(img)
             attrs.append(attr)
     # Reshape images
-    if len(imgs) > 1 and len(imgs[0].shape) > 2:
+    if len(imgs) > 1:
+        # read_img only returns a leading channel axis when a series has more than one color,
+        # so give single-color series one before concatenating. Otherwise their z-planes get
+        # glued together into a single axis.
+        imgs = [
+            img if len(attr.get("colors", [])) > 1 else img[np.newaxis, ...]
+            for img, attr in zip(imgs, attrs, strict=True)
+        ]
         imgs = np.concatenate(imgs, axis=0)
-    elif len(imgs) > 1 and len(imgs[0].shape) == 2:
-        imgs = np.stack(imgs, axis=0)
     else:
         imgs = imgs[0]
     # Update attributes

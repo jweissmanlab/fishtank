@@ -42,6 +42,7 @@ def get_parser():
     )
     parser.add_argument("--model", type=str, default="cpsam", help="Cellpose model (e.g., cpsam)")
     parser.add_argument("--diameter", type=int, default=None, help="Cellpose diameter")
+    parser.add_argument("--anisotropy", type=float, default=None, help="Anisotropy factor for 3D segmentation")
     parser.add_argument("--cellprob_threshold", type=float, default=0, help="Cell probability threshold")
     parser.add_argument("--downsample", type=int, default=None, help="Downsampling factor")
     parser.add_argument("--do_3D", type=bool, default=False, help="Use 3D segmentation")
@@ -70,6 +71,7 @@ def cellpose(
     z_slices: list[int] | slice | None = None,
     model: str = "cpsam",
     diameter: int | None = None,
+    anisotropy: float = None,
     cellprob_threshold: float = 0.0,
     downsample: int | None = None,
     do_3D: bool = False,
@@ -172,6 +174,11 @@ def cellpose(
         logger.info(f"Downsampling image by a factor of {downsample}")
         downscale = (1,) * (img.ndim - 2) + (downsample, downsample)
         img = ski.transform.downscale_local_mean(img, downscale)
+        # add rescaled anisotropy for 3D segmentation
+        if anisotropy is not None:
+            logger.info(f"Rescaling anisotropy for 3D segmentation: {anisotropy} -> {anisotropy / downsample}")
+            anisotropy = anisotropy / downsample # because downsampling only to x,y dimensions
+    logger.info(f"Anisotropy after downsampling: {anisotropy}")
     # Segment cells
     logger.info("Segmenting cells")
     with warnings.catch_warnings():
@@ -181,6 +188,7 @@ def cellpose(
         img,
         diameter=diameter,
         cellprob_threshold=cellprob_threshold,
+        anisotropy=anisotropy,
         do_3D=do_3D,
         channel_axis=0 if img.ndim >= 3 else None,
         z_axis=1 if img.ndim == 4 else 0,

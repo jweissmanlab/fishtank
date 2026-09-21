@@ -73,10 +73,14 @@ def deconwolf(
             color_psf = psf_path / f"{color}_z{int(z_step*1000)}_psf.tiff"
             if not color_psf.exists():
                 raise FileNotFoundError(f"PSF for color {color} and z_step {z_step} not found at {color_psf}.")
-            ski.io.imsave(f"{tmp_dir}/img.tiff", img[i])
-            command = f"{dw_path} --out {tmp_dir}/decon.tiff --iter {iter} {tile} {gpu} {tmp_dir}/img.tiff {color_psf} --verbose 0"
+            # Per-channel file names: deconwolf refuses to overwrite an existing
+            # --out file, which would silently reuse the previous channel's result.
+            in_tiff = f"{tmp_dir}/img_{i}.tiff"
+            out_tiff = f"{tmp_dir}/decon_{i}.tiff"
+            ski.io.imsave(in_tiff, img[i])
+            command = f"{dw_path} --out {out_tiff} --overwrite --iter {iter} {tile} {gpu} {in_tiff} {color_psf} --verbose 0"
             subprocess.run(command, check=True, shell=True)
-            filtered[i] = ski.io.imread(f"{tmp_dir}/decon.tiff")
+            filtered[i] = ski.io.imread(out_tiff)
     if not has_channels:
         filtered = filtered[0]
     return filtered.astype(img.dtype)
