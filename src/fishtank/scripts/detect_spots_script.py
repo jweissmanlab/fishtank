@@ -285,6 +285,14 @@ def detect_spots(
     logger.info(f"Loading reference series {ref_series}")
     ref_channels = channels.query("series == @ref_series & bit not in @reg_bit and bit not in @exclude_bits")
     ref_img, ref_attr = ft.io.read_fov(input, fov, channels=ref_channels, file_pattern=file_pattern, z_slices=z_slices)
+    # Warn if the requested scale_factor disagrees with the objective resolution in the XML metadata.
+    xml_resolution = ref_attr.get("micron_per_pixel")
+    if scale_factor is not None and xml_resolution is not None and not np.isclose(scale_factor, xml_resolution, atol=1e-4):
+        logger.warning(
+            f"Specified --scale_factor ({scale_factor}) does not match the objective resolution in the "
+            f"XML metadata ({xml_resolution} micron/pixel). Using the specified value; "
+            f"check that this is intended."
+        )
     reg_img = _load_reg_img(input, fov, ref_series, reg_bit, reg_color, channels, file_pattern, reg_z_slice, z_drift, reg_clip_pct)
     current_drift = np.zeros(3, dtype=int) if z_drift else np.zeros(2, dtype=int)
     # Get common image
