@@ -7,3 +7,4 @@ from .decode_spots_script import decode_spots
 from .detect_spots_script import detect_spots
 from .fovs_script import fovs
 from .mosaic_script import mosaic
+from .plot_drift_script import plot_drift
