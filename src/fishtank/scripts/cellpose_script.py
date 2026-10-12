@@ -56,6 +56,7 @@ def get_parser():
         "--filter_args", type=parse_dict, default={}, help="Additional filter arguments (e.g., key1=val1,key2=val2)"
     )
     parser.add_argument("--gpu", type=bool, default=False, help="Use GPU")
+    parser.add_argument("--microscope", type=parse_path, default=None, help="YAML file of microscope settings (transpose, flip_horizontal, flip_vertical, micron_per_pixel) that override the image XML")
     parser.set_defaults(func=cellpose)
     return parser
 
@@ -81,6 +82,7 @@ def cellpose(
     filter: str = None,
     filter_args: dict = None,
     gpu: bool = False,
+    microscope: str | Path | None = None,
     **kwargs,
 ):
     """Segment cells using Cellpose.
@@ -127,6 +129,8 @@ def cellpose(
         Additional filter arguments (e.g., key1=val1,key2=val2).
     gpu
         Use GPU.
+    microscope
+        YAML file of microscope settings that override the image XML (see ``fishtank.io.read_microscope``).
     """
     # Import Cellpose
     from cellpose import models
@@ -142,7 +146,7 @@ def cellpose(
     use_channels = channels
     channels = ft.io.read_color_usage(color_usage)
     channels = channels.set_index("bit").loc[use_channels, :].reset_index()
-    img, attrs = ft.io.read_fov(input, fov, channels=channels, file_pattern=file_pattern, z_slices=z_slices)
+    img, attrs = ft.io.read_fov(input, fov, channels=channels, file_pattern=file_pattern, z_slices=z_slices, microscope=microscope)
     logger.info(f"Loaded image with shape: {img.shape}")
     logger.info(f"Loaded attrs: {attrs}")
     # Correct illumination

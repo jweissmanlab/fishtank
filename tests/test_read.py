@@ -74,6 +74,35 @@ def test_read_dax_frames(dax_path):
         img = ft.io.read_dax(dax_path, frames=[1, 100], shape=(288, 288))
 
 
+def test_read_microscope(tmp_path):
+    path = tmp_path / "scope.yaml"
+    path.write_text("# comments are allowed\ntranspose: true  # camera is mounted sideways\nflip_horizontal: true\nmicron_per_pixel: 0.0893\n")
+    assert ft.io.read_microscope(path) == {"transpose": True, "flip_horizontal": True, "micron_per_pixel": 0.0893}
+    with pytest.raises(ValueError, match="pixel_size"):
+        ft.io.read_microscope({"pixel_size": 0.1})
+
+
+def test_read_img_microscope(dax_path):
+    img, attrs = ft.io.read_img(dax_path)
+    # Same flags as the XML plus both flips: the image turns 180 degrees
+    scope = {key: attrs[key] for key in ("transpose", "flip_horizontal", "flip_vertical")}
+    scope["flip_horizontal"] = not scope["flip_horizontal"]
+    scope["flip_vertical"] = not scope["flip_vertical"]
+    scope["micron_per_pixel"] = 0.5
+    turned, turned_attrs = ft.io.read_img(dax_path, microscope=scope)
+    assert np.array_equal(turned, img[..., ::-1, ::-1])
+    assert turned_attrs["micron_per_pixel"] == 0.5
+    assert attrs["micron_per_pixel"] != 0.5
+
+
+def test_read_fov_microscope(img_path):
+    img, attrs = ft.io.read_fov(img_path, 0, series="H0R1", colors=[405], z_slices=[0])
+    scope = {"micron_per_pixel": 0.25}
+    img2, attrs2 = ft.io.read_fov(img_path, 0, series="H0R1", colors=[405], z_slices=[0], microscope=scope)
+    assert np.array_equal(img, img2)
+    assert attrs2["micron_per_pixel"] == 0.25
+
+
 def test_read_img(dax_path):
     img, attrs = ft.io.read_img(dax_path)
     assert img.shape == (5, 5, 288, 288)

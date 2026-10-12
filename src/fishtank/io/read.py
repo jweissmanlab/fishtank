@@ -7,6 +7,7 @@ import numpy as np
 import pandas as pd
 import skimage as ski
 import tifffile as tiff
+import yaml
 from tqdm.auto import tqdm
 
 from fishtank.utils import create_mosaic, determine_fov_format
@@ -17,6 +18,36 @@ def _xml_to_dict(element):
     if len(element) == 0:
         return element.text
     return {child.tag: _xml_to_dict(child) for child in element}
+
+
+MICROSCOPE_KEYS = ("transpose", "flip_horizontal", "flip_vertical", "micron_per_pixel")
+
+
+def read_microscope(microscope: str | pathlib.Path | dict) -> dict:
+    """Read microscope settings that override the image XML.
+
+    Parameters
+    ----------
+    microscope
+        Path to a YAML file, or a dict, with any of the keys "transpose", "flip_horizontal",
+        "flip_vertical" (booleans) and "micron_per_pixel" (float). The flags mean the same as the XML's
+        and are applied in the same order by :func:`read_img`.
+
+    Returns
+    -------
+    settings
+        a dictionary of the given settings.
+    """
+    if not isinstance(microscope, dict):
+        with open(microscope) as f:
+            microscope = yaml.safe_load(f) or {}
+    unknown = set(microscope) - set(MICROSCOPE_KEYS)
+    if unknown:
+        raise ValueError(f"Unknown microscope settings {sorted(unknown)}; allowed: {list(MICROSCOPE_KEYS)}")
+    settings = {key: bool(microscope[key]) for key in MICROSCOPE_KEYS[:3] if key in microscope}
+    if "micron_per_pixel" in microscope:
+        settings["micron_per_pixel"] = float(microscope["micron_per_pixel"])
+    return settings
 
 
 def read_xml(path: str | pathlib.Path, parse: bool = True, parse_colors: bool = True) -> dict:
@@ -278,6 +309,7 @@ def read_img(
     shape: tuple = None,
     color_order: list = None,
     frames: str | pathlib.Path = None,
+    microscope: str | pathlib.Path | dict = None,
     plugin: str = None,
     **plugin_args,
 ) -> tuple[np.ndarray, dict]:
@@ -302,6 +334,9 @@ def read_img(
         The CSV must have an index column (frame index) and columns 'color' and 'z'.
         Rows with NaN color are treated as blank frames and skipped.
         When provided, overrides XML-based frame metadata for color/z mapping.
+    microscope
+        Microscope settings (YAML path or dict, see :func:`read_microscope`) that override the XML's
+        orientation flags and pixel size.
     plugin
         Name of skimage plugin used to load image if not dax format.
     plugin_args
@@ -335,6 +370,8 @@ def read_img(
             n_colors = len(attrs["colors"])
     else:
         attrs = {}
+    if microscope is not None:
+        attrs.update(read_microscope(microscope))
     # If frame table provided, override color/z metadata
     cz_to_frame = None
     if frames is not None:
@@ -555,6 +592,7 @@ def read_fov(
     z_slices: list = None,
     z_project: bool = False,
     ref_series: int | str = None,
+    microscope: str | pathlib.Path | dict = None,
 ) -> tuple[np.ndarray, dict]:
     """Read FOV from MERFISH experiment.
 
@@ -576,6 +614,8 @@ def read_fov(
         List of z-slice indices to read.
     z_project
         If True, z-project the image.
+    microscope
+        Microscope settings passed to :func:`read_img`.
 
     Returns
     -------
@@ -584,6 +624,8 @@ def read_fov(
     attrs
         a dictionary of image attributes.
     """
+    if microscope is not None:
+        microscope = read_microscope(microscope)  # read the file once for every series
     imgs = []
     attrs = []
     path = pathlib.Path(path)
@@ -595,7 +637,7 @@ def read_fov(
             file_pattern = determine_fov_format(path, fov=fov, series=series[0], file_pattern=file_pattern)
         for s in series:
             file = path / file_pattern.format(series=s, fov=fov).format(fov=fov)
-            img, attr = read_img(file, z_slices=z_slices, z_project=z_project, colors=colors)
+            img, attr = read_img(file, z_slices=z_slices, z_project=z_project, colors=colors, microscope=microscope)
             imgs.append(img)
             attrs.append(attr)
     # Load images given channels df
@@ -619,6 +661,7 @@ def read_fov(
                 z_slices=z_slices,
                 z_project=z_project,
                 frames=frame_table,
+                microscope=microscope,
             )
             imgs.append(img)
             attrs.append(attr)
@@ -662,6 +705,7 @@ def read_mosaic(
     positions: dict | None = None,
     flip_horizontal: bool = False,
     flip_vertical: bool = False,
+    microscope: str | pathlib.Path | dict = None,
 ) -> tuple[np.ndarray, np.ndarray]:
     """Read FOV images as a mosaic.
 
@@ -694,6 +738,8 @@ def read_mosaic(
         Flip each FOV image horizontally before stitching.
     flip_vertical
         Flip each FOV image vertically before stitching.
+    microscope
+        Microscope settings passed to :func:`read_img`.
 
     Returns
     -------
@@ -727,6 +773,7 @@ def read_mosaic(
             z_slices=z_slices,
             z_project=z_project,
             file_pattern=file_pattern,
+            microscope=microscope,
         )
         if downsample > 1:
             if len(img.shape) == 2:
