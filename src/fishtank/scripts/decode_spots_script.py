@@ -168,6 +168,16 @@ def decode_spots(
     if strategy is not None:
         spots.drop(columns=set(channels.bit) - decoding_bits, inplace=True, errors="ignore")
         channels = channels.query("bit in @decoding_bits").copy()
+        # Spots files can lack bits (rounds not quantified yet) or hold NaN intensities
+        # (e.g. detect-spots --on_the_fly keeps them); one NaN would turn every normalized
+        # intensity into NaN, so stop on missing bits and drop incomplete spots.
+        missing_bits = [bit for bit in channels.bit if bit not in spots.columns]
+        if missing_bits:
+            raise ValueError(f"Spots have no intensities for decoding bits {missing_bits}")
+        n_spots = len(spots)
+        spots = spots.dropna(subset=list(channels.bit)).copy()
+        if len(spots) < n_spots:
+            logger.info(f"Dropped {n_spots - len(spots)} spots with missing intensities")
     # Color normalization
     if normalize_colors:
         logger.info("Normalizing spot intensities by color")
