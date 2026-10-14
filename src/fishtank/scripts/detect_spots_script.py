@@ -184,6 +184,17 @@ def get_parser():
         default=None,
         help="Z-slices to use for segmentation (e.g., 1 or 1,2,3 or 1:20:5)",
     )
+    parser.add_argument(
+        "--on_the_fly",
+        type=parse_bool,
+        default=False,
+        help="Incremental/streaming mode. Detect spots once from the reference (and "
+        "common-bit) series, then quantify only the series already present on disk, "
+        "appending to any existing spots_{fov}.csv / channels_{fov}.csv when re-run as "
+        "more rounds arrive. Series whose image files are not yet on disk are skipped "
+        "instead of raising FileNotFoundError. Default False = original behavior "
+        "(every series must be present up front).",
+    )
     parser.set_defaults(func=detect_spots)
     return parser
 
@@ -213,6 +224,7 @@ def detect_spots(
     reg_clip_pct: float | None = None,
     scale_factor: float | None = None,
     z_slices: list[int] | slice | None = None,
+    on_the_fly: bool = False,
     **kwargs,
 ):
     """Detect spots in an image and quantify their intensity.
@@ -269,6 +281,17 @@ def detect_spots(
         Factor to convert pixel coordinates to microns. If None, will use micron_per_pixel from image metadata.
     z_slices
         Z-slices to use for spot_detection (e.g., 1 or 1,2,3 or 1:20:5).
+    on_the_fly
+        Incremental/streaming mode for experiments whose rounds are analyzed while they
+        are still being acquired. When True, spots are detected once (requiring only the
+        reference and common-bit series) and their positions are frozen; each series
+        whose image files are not yet on disk is skipped instead of raising
+        FileNotFoundError. Re-running the same command as more rounds land resumes from
+        the existing ``spots_{fov}.csv`` / ``channels_{fov}.csv``, quantifying only the
+        newly-arrived series and appending their bit columns. Because later rounds may
+        not be present yet, the final ``dropna`` (which would discard spots missing any
+        bit) is skipped in this mode, so not-yet-acquired bits are left as NaN. When
+        False (default) the behavior is unchanged: every series must be present up front.
     """
     # Setup
     logger = logging.getLogger("detect_spots")
@@ -284,57 +307,116 @@ def detect_spots(
     # Get reference image
     logger.info(f"Loading reference series {ref_series}")
     ref_channels = channels.query("series == @ref_series & bit not in @reg_bit and bit not in @exclude_bits")
-    ref_img, ref_attr = ft.io.read_fov(input, fov, channels=ref_channels, file_pattern=file_pattern, z_slices=z_slices)
-    reg_img = _load_reg_img(input, fov, ref_series, reg_bit, reg_color, channels, file_pattern, reg_z_slice, z_drift, reg_clip_pct)
+    try:
+        ref_img, ref_attr = ft.io.read_fov(input, fov, channels=ref_channels, file_pattern=file_pattern, z_slices=z_slices)
+        reg_img = _load_reg_img(input, fov, ref_series, reg_bit, reg_color, channels, file_pattern, reg_z_slice, z_drift, reg_clip_pct)
+    except FileNotFoundError as e:
+        # On the fly, the reference round may simply not have been transferred yet.
+        # Nothing can be detected or quantified until it is; exit cleanly so a later
+        # re-run picks up where we left off. Off the fly, this is a real error.
+        if on_the_fly:
+            logger.info(f"Reference series {ref_series} not yet on disk ({e}); nothing to do yet")
+            return
+        raise
     current_drift = np.zeros(3, dtype=int) if z_drift else np.zeros(2, dtype=int)
-    # Get common image
-    if len(ref_channels.query("bit in @common_bits")) == len(common_bits):
-        common_img = ref_img[ref_channels.bit.isin(common_bits)].squeeze()
-        if common_img.ndim > 3: # (C, Z, Y, X)
-            common_img = common_img.max(axis=0) # (Z, Y, X)
+    # On-the-fly resume: spot positions are frozen at first detection so that the per-bit
+    # columns added on later passes line up to the same spots. If a previous pass already
+    # detected spots, reload them (and the series already quantified) instead of re-detecting.
+    spots_path = output / f"spots_{fov}.csv"
+    channels_path = output / f"channels_{fov}.csv"
+    resume = on_the_fly and spots_path.exists() and channels_path.exists()
+    done_channels = None
+    done_series = []
+    if resume:
+        spots = pd.read_csv(spots_path)
+        done_channels = pd.read_csv(channels_path)
+        done_series = list(dict.fromkeys(done_channels["series"].tolist()))
+        # max_z bounds the z index during quantification. On first detection it comes from
+        # the z-padded common image (n_z + 2, so max_z = n_z + 1); reconstruct the same
+        # bound here from the reference z-plane count (ref_attr z_offsets already reflects
+        # any --z_slices selection).
+        max_z = len(ref_attr["z_offsets"]) + 1
+        del ref_img
+        logger.info(f"On-the-fly resume: {len(spots)} spots loaded, {len(done_series)} series already quantified")
+        # Seed the carry-forward drift from the last series processed on a previous pass so
+        # the "reuse previous drift" fallbacks below stay meaningful across resumed runs.
+        if len(done_channels) and {"x_drift", "y_drift"}.issubset(done_channels.columns):
+            last = done_channels.iloc[-1]
+            if z_drift and "z_drift" in done_channels.columns:
+                current_drift = np.array([last["z_drift"], last["y_drift"], last["x_drift"]], dtype=int)
+            else:
+                current_drift = np.array([last["y_drift"], last["x_drift"]], dtype=int)
     else:
-        common_img = []
-        logger.info("Getting common bit max projection")
-        for series, series_channels in channels.query("bit in @common_bits").groupby("series", sort=False):
-            logger.info(f"Loading series {series}")
-            img, _ = ft.io.read_fov(input, fov, channels=series_channels, file_pattern=file_pattern, z_slices=z_slices)
-            series_reg_img = _load_reg_img(input, fov, series, reg_bit, reg_color, channels, file_pattern, reg_z_slice, z_drift, reg_clip_pct)
-            drift = ski.registration.phase_cross_correlation(reg_img, series_reg_img)[0].astype(int)
-            logger.info(f"Series drift: {drift}")
-            img = np.roll(img, shift=drift[:2], axis=(-2, -1))# apply drift correction
-            common_img.append(img.max(axis=0))  # (Z, Y, X)
-        common_img = np.stack(common_img).max(axis=0)  # (Z, Y, X)
-    del ref_img
-    logger.info(f"Applying {filter_name} filter")
-    common_img = ski.util.apply_parallel(
-        filter, common_img, chunks=(1, common_img.shape[1], common_img.shape[2]), dtype=common_img.dtype, channel_axis=0
-    )
-    # Detect spots
-    logger.info(f"Detecting spots with threshold {spot_threshold}")
-    common_img = np.pad(common_img, ((1, 1), (0, 0), (0, 0)), mode="constant")  # pad z axis
-    positions = ski.feature.blob_log(
-        common_img.astype(float),
-        min_sigma=spot_min_sigma,
-        max_sigma=spot_max_sigma,
-        threshold=spot_threshold,
-        num_sigma=4,
-    )
-    logger.info(f"Detected {positions.shape[0]} spots")
-    spots = pd.DataFrame(positions[:, :3].astype(int), columns=["z", "y", "x"])
-    max_z = common_img.shape[0] - 1
-    spots["z"] = (spots["z"] - 1).clip(0, max_z - 2)
-    del common_img
+        # Get common image
+        try:
+            if len(ref_channels.query("bit in @common_bits")) == len(common_bits):
+                common_img = ref_img[ref_channels.bit.isin(common_bits)].squeeze()
+                if common_img.ndim > 3: # (C, Z, Y, X)
+                    common_img = common_img.max(axis=0) # (Z, Y, X)
+            else:
+                common_img = []
+                logger.info("Getting common bit max projection")
+                for series, series_channels in channels.query("bit in @common_bits").groupby("series", sort=False):
+                    logger.info(f"Loading series {series}")
+                    img, _ = ft.io.read_fov(input, fov, channels=series_channels, file_pattern=file_pattern, z_slices=z_slices)
+                    series_reg_img = _load_reg_img(input, fov, series, reg_bit, reg_color, channels, file_pattern, reg_z_slice, z_drift, reg_clip_pct)
+                    drift = ski.registration.phase_cross_correlation(reg_img, series_reg_img)[0].astype(int)
+                    logger.info(f"Series drift: {drift}")
+                    img = np.roll(img, shift=drift[:2], axis=(-2, -1))# apply drift correction
+                    common_img.append(img.max(axis=0))  # (Z, Y, X)
+                common_img = np.stack(common_img).max(axis=0)  # (Z, Y, X)
+        except FileNotFoundError as e:
+            # A series holding a common bit hasn't arrived yet -> can't detect spots yet.
+            if on_the_fly:
+                logger.info(f"A common-bit series is not yet on disk ({e}); waiting to detect spots")
+                return
+            raise
+        del ref_img
+        logger.info(f"Applying {filter_name} filter")
+        common_img = ski.util.apply_parallel(
+            filter, common_img, chunks=(1, common_img.shape[1], common_img.shape[2]), dtype=common_img.dtype, channel_axis=0
+        )
+        # Detect spots
+        logger.info(f"Detecting spots with threshold {spot_threshold}")
+        common_img = np.pad(common_img, ((1, 1), (0, 0), (0, 0)), mode="constant")  # pad z axis
+        positions = ski.feature.blob_log(
+            common_img.astype(float),
+            min_sigma=spot_min_sigma,
+            max_sigma=spot_max_sigma,
+            threshold=spot_threshold,
+            num_sigma=4,
+        )
+        logger.info(f"Detected {positions.shape[0]} spots")
+        spots = pd.DataFrame(positions[:, :3].astype(int), columns=["z", "y", "x"])
+        max_z = common_img.shape[0] - 1
+        spots["z"] = (spots["z"] - 1).clip(0, max_z - 2)
+        del common_img
     # Intensity quantification
     logger.info("Quantifying spot intensities")
     filtered_channels = channels.query("bit not in @exclude_bits and bit not in @reg_bit").copy()
-    for series, series_channels in filtered_channels.groupby("series", sort=False):
+    # On a resume pass, only the series not already quantified are pending; otherwise all.
+    if resume:
+        pending_channels = filtered_channels[~filtered_channels["series"].isin(done_series)]
+    else:
+        pending_channels = filtered_channels
+    processed = []  # per-series channel metadata for series successfully quantified this pass
+    for series, series_channels in pending_channels.groupby("series", sort=False):
+        series_channels = series_channels.copy()
         # Read series image
         logger.info(f"Loading series {series}")
-        img, series_attr = ft.io.read_fov(input, fov, channels=series_channels, file_pattern=file_pattern, z_slices=z_slices)
+        try:
+            img, series_attr = ft.io.read_fov(input, fov, channels=series_channels, file_pattern=file_pattern, z_slices=z_slices)
+        except FileNotFoundError as e:
+            # On the fly, this round simply hasn't been transferred yet -> skip; a later
+            # re-run will pick it up. Off the fly, a missing series is a real error.
+            if on_the_fly:
+                logger.info(f"Series {series} not yet on disk ({e}); skipping")
+                continue
+            raise
         if img.ndim == 3:  # (Z, Y, X)
             img = img[np.newaxis, ...]
         channel_max = img.max(axis=(1, 2, 3))
-        filtered_channels.loc[filtered_channels.series == series, "max_intensity"] = channel_max
+        series_channels["max_intensity"] = channel_max
         # Get the drift
         series_reg_img = _load_reg_img(input, fov, series, reg_bit, reg_color, channels, file_pattern, reg_z_slice, z_drift, reg_clip_pct)
         drift = ski.registration.phase_cross_correlation(reg_img, series_reg_img)[0].astype(int)
@@ -352,10 +434,10 @@ def detect_spots(
             drift = current_drift
         current_drift = drift
         logger.info(f"Series drift: {drift}")
-        filtered_channels.loc[filtered_channels.series == series, "x_drift"] = drift[-1]
-        filtered_channels.loc[filtered_channels.series == series, "y_drift"] = drift[-2]
+        series_channels["x_drift"] = drift[-1]
+        series_channels["y_drift"] = drift[-2]
         if z_drift:
-            filtered_channels.loc[filtered_channels.series == series, "z_drift"] = drift[0]
+            series_channels["z_drift"] = drift[0]
         # Filter the image
         logger.info(f"Applying {filter_name} filter")
         for i in range(img.shape[0]):
@@ -378,15 +460,28 @@ def detect_spots(
         spots[series_channels.bit] = ft.decode.spot_intensities(
             img, spots.x - drift[-1], spots.y - drift[-2], z, spot_radius
         )
+        processed.append(series_channels)
+    # Assemble channel metadata: prior passes (resume) + series quantified this pass.
+    channel_frames = ([done_channels] if done_channels is not None else []) + processed
+    if len(channel_frames) > 0:
+        filtered_channels = pd.concat(channel_frames, ignore_index=True)
+    else:
+        # On the fly with nothing quantified yet (only detection ran): keep the schema.
+        filtered_channels = filtered_channels.iloc[0:0].copy()
     # Clean up
-    spots = spots.dropna().copy()
-    if scale_factor is not None:
-        ref_attr["micron_per_pixel"] = scale_factor
-    spots["global_x"] = spots["x"] * ref_attr["micron_per_pixel"] + ref_attr["stage_position"][0]
-    spots["global_y"] = spots["y"] * ref_attr["micron_per_pixel"] + ref_attr["stage_position"][1]
-    spots["global_z"] = spots["z"].apply(lambda x: ref_attr["z_offsets"][x])
-    spots["spot"] = spots.reset_index().index.values
-    spots["fov"] = fov
+    if not on_the_fly:
+        # Off the fly, every bit is present, so drop spots missing any of them. On the fly,
+        # later rounds are still to come, so keep every spot (NaN for not-yet-acquired bits).
+        spots = spots.dropna().copy()
+    if not resume:
+        # Detection-time columns are computed once and then frozen (reloaded on resume).
+        if scale_factor is not None:
+            ref_attr["micron_per_pixel"] = scale_factor
+        spots["global_x"] = spots["x"] * ref_attr["micron_per_pixel"] + ref_attr["stage_position"][0]
+        spots["global_y"] = spots["y"] * ref_attr["micron_per_pixel"] + ref_attr["stage_position"][1]
+        spots["global_z"] = spots["z"].apply(lambda x: ref_attr["z_offsets"][x])
+        spots["spot"] = spots.reset_index().index.values
+        spots["fov"] = fov
     col_order = ["fov", "spot", "x", "y", "z", "global_x", "global_y", "global_z"]
     col_order = col_order + [x for x in spots.columns if x not in col_order]
     spots = spots[col_order]
