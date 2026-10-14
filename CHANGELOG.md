@@ -16,6 +16,8 @@ and this project adheres to [Semantic Versioning][].
 
 ### Fixes
 
+- Boolean script flags (`cellpose --gpu/--do_3D/--clear_border`, `aggregate-polygons --save_union/--flip_*`, `align-experiments --skip_fine`, `assign-spots --map_z`) used `type=bool`, so `False` turned them on. They now use `parse_bool`, which also raises on values that are not true/false, 1/0, yes/no, t/f or y/n instead of reading them as `False`.
+
 ## [0.3.7]
 
 ### Fixes

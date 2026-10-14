@@ -7,7 +7,7 @@ import pandas as pd
 
 import fishtank as ft
 
-from ._utils import parse_path
+from ._utils import parse_bool, parse_path
 
 
 def get_parser():
@@ -36,7 +36,7 @@ def get_parser():
     parser.add_argument(
         "--alignment", type=parse_path, default=None, help="File used to align spots space to polygons space"
     )
-    parser.add_argument("--map_z", type=bool, default=False, help="Map spot z values to polygon z values")
+    parser.add_argument("--map_z", type=parse_bool, default=False, help="Map spot z values to polygon z values")
     parser.set_defaults(func=assign_spots)
     return parser
 

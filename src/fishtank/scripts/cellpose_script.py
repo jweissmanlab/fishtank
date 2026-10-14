@@ -8,7 +8,7 @@ import skimage as ski
 
 import fishtank as ft
 
-from ._utils import parse_dict, parse_index, parse_list, parse_path
+from ._utils import parse_bool, parse_dict, parse_index, parse_list, parse_path
 
 
 class FOVLoggerAdapter(logging.LoggerAdapter):  # noqa: D101
@@ -45,17 +45,17 @@ def get_parser():
     parser.add_argument("--anisotropy", type=float, default=None, help="Anisotropy factor for 3D segmentation")
     parser.add_argument("--cellprob_threshold", type=float, default=0, help="Cell probability threshold")
     parser.add_argument("--downsample", type=int, default=None, help="Downsampling factor")
-    parser.add_argument("--do_3D", type=bool, default=False, help="Use 3D segmentation")
+    parser.add_argument("--do_3D", type=parse_bool, default=False, help="Use 3D segmentation")
     parser.add_argument(
         "--model_args", type=parse_dict, default={}, help="Additional model arguments (e.g., key1=val1,key2=val2)"
     )
-    parser.add_argument("--clear_border", type=bool, default=False, help="Remove cells touching the image border")
+    parser.add_argument("--clear_border", type=parse_bool, default=False, help="Remove cells touching the image border")
     parser.add_argument("--min_size", type=int, default=1000, help="Minimum area or volume for a cell to be kept")
     parser.add_argument("--filter", type=str, default=None, help="Filter to apply to the image before segmentation")
     parser.add_argument(
         "--filter_args", type=parse_dict, default={}, help="Additional filter arguments (e.g., key1=val1,key2=val2)"
     )
-    parser.add_argument("--gpu", type=bool, default=False, help="Use GPU")
+    parser.add_argument("--gpu", type=parse_bool, default=False, help="Use GPU")
     parser.set_defaults(func=cellpose)
     return parser
 

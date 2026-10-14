@@ -1,3 +1,4 @@
+import argparse
 import ast
 import math
 from pathlib import Path
@@ -38,10 +39,14 @@ def parse_path(arg: str) -> Path:
 
 
 def parse_bool(arg: str) -> bool:
-    """Parse boolean input"""
+    """Parse boolean input (true/false, 1/0, yes/no, t/f, y/n)"""
     if arg is None:
         return False
-    return arg.lower() in ["true", "1", "t", "y", "yes"]
+    if arg.lower() in ["true", "1", "t", "y", "yes"]:
+        return True
+    if arg.lower() in ["false", "0", "f", "n", "no"]:
+        return False
+    raise argparse.ArgumentTypeError(f"Expected a boolean (e.g. True or False), got {arg!r}")
 
 
 def parse_rotation(arg: str) -> float:
