@@ -14,6 +14,7 @@
     io.read_mosaic
     io.list_fovs
     io.read_dax
+    io.read_zarr
     io.read_xml
     io.read_color_usage
 

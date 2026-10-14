@@ -20,3 +20,4 @@ dependencies:
       - h5py
       - scikit-learn
       - rasterio
+      - zarr

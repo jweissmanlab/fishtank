@@ -16,6 +16,11 @@ def dax_path(img_path):
 
 
 @pytest.fixture()
+def zarr_path(img_path):
+    return img_path / "H0R1" / "Conv_zscan_00.zarr"
+
+
+@pytest.fixture()
 def color_usage_path(img_path):
     return img_path / "color_usage.csv"
 
@@ -72,6 +77,52 @@ def test_read_dax_frames(dax_path):
     assert img.shape == (1, 288, 288)
     with pytest.raises(ValueError):
         img = ft.io.read_dax(dax_path, frames=[1, 100], shape=(288, 288))
+
+
+def test_read_zarr(zarr_path, dax_path):
+    # The committed .zarr fixture holds the same camera frames as the .dax fixture.
+    raw = ft.io.read_dax(dax_path, shape=(288, 288))  # (25, 288, 288)
+    # Full read round-trips the stored data
+    img = ft.io.read_zarr(zarr_path)
+    assert img.shape == (25, 288, 288)
+    assert img.dtype == "uint16"
+    assert np.array_equal(img, raw)
+    # Frame selection (list, scalar) and out-of-bounds handling
+    img = ft.io.read_zarr(zarr_path, frames=[0, 5, 10])
+    assert img.shape == (3, 288, 288)
+    assert np.array_equal(img, raw[[0, 5, 10]])
+    img = ft.io.read_zarr(zarr_path, frames=5)
+    assert img.shape == (1, 288, 288)
+    assert np.array_equal(img[0], raw[5])
+    with pytest.raises(ValueError):
+        ft.io.read_zarr(zarr_path, frames=[1, 100])
+
+
+def test_read_img_zarr_matches_dax(zarr_path, dax_path):
+    # The .zarr and .dax fixtures hold the same camera frames and share the XML
+    # sidecar, so read_img must return identical arrays (square sensor => the two
+    # on-disk layouts coincide).
+    img_z, attrs_z = ft.io.read_img(zarr_path)
+    img_d, attrs_d = ft.io.read_img(dax_path)
+    assert img_z.shape == img_d.shape == (5, 5, 288, 288)
+    assert img_z.dtype == "uint16"
+    assert np.array_equal(img_z, img_d)
+    assert attrs_z["colors"] == attrs_d["colors"]
+    # Color / z selection parity
+    img_z, _ = ft.io.read_img(zarr_path, colors=[637, 545], z_slices=[0, 2])
+    img_d, _ = ft.io.read_img(dax_path, colors=[637, 545], z_slices=[0, 2])
+    assert np.array_equal(img_z, img_d)
+
+
+def test_read_img_zarr_frame_table(zarr_path, dax_path, frame_table_path, tmp_path):
+    # Frame-table path: zarr read matches dax read, and a row-count mismatch errors.
+    img_z, _ = ft.io.read_img(zarr_path, frames=frame_table_path)
+    img_d, _ = ft.io.read_img(dax_path, frames=frame_table_path)
+    assert np.array_equal(img_z, img_d)
+    wrong_frame_table = tmp_path / "frame_table_wrong.csv"
+    wrong_frame_table.write_text(",color,z\n0,748,-15.0\n1,637,-15.0\n")
+    with pytest.raises(ValueError, match="Frame table has 2 rows but image has 25 frames"):
+        ft.io.read_img(zarr_path, frames=wrong_frame_table)
 
 
 def test_read_img(dax_path):

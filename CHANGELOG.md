@@ -12,6 +12,8 @@ and this project adheres to [Semantic Versioning][].
 
 ### Added
 
+- Support for reading `.zarr` movies via a new `read_zarr` function, wired into `read_img`/`read_fov`. Reads the Zhuang-lab HAL / `storm-control` Zarr format (a directory store with a single `(F, Y, X)` uint16 array named `data`) and returns frames in the same orientation as `.dax`.
+
 ### Changed
 
 ### Fixes

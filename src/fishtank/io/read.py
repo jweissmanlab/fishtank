@@ -7,6 +7,7 @@ import numpy as np
 import pandas as pd
 import skimage as ski
 import tifffile as tiff
+import zarr
 from tqdm.auto import tqdm
 
 from fishtank.utils import create_mosaic, determine_fov_format
@@ -152,6 +153,67 @@ def read_dax(
             raise ValueError(f"Frame indices {frames} are out of bounds")  # noqa: B904
         n_frames = len(frames)
     return img.reshape(n_frames, *shape)
+
+
+def _open_zarr_array(path: str | pathlib.Path) -> zarr.Array:
+    """Open the movie array inside a MERFISH ``.zarr`` store.
+
+    HAL/storm-control write each acquisition as a Zarr *group* containing a single
+    3D array named ``data``. This helper tolerates either that layout or a store
+    whose root is already the array.
+
+    Parameters
+    ----------
+    path
+        Path to the ``.zarr`` store (a directory).
+
+    Returns
+    -------
+    arr
+        the ``zarr.Array`` holding the movie, without reading it into memory.
+    """
+    store = zarr.open(str(path), mode="r")
+    # A group exposes keys(); if it contains "data" use that, otherwise assume the
+    # opened object is itself the array.
+    if hasattr(store, "keys") and "data" in store:
+        return store["data"]
+    return store
+
+
+def read_zarr(path: str | pathlib.Path, frames: int | list = None) -> np.ndarray:
+    """Read a MERFISH formatted zarr movie.
+
+    Reads movies written in the Zhuang-lab HAL ``.zarr`` format (see the
+    ``storm_control`` ``ZarrFile`` writer), i.e. a directory store containing a
+    single 3D array named ``data`` with shape ``(F, Y, X)`` and dtype ``uint16``.
+    Frames are the fastest-varying acquisition axis, exactly as for ``.dax``
+    movies, so the returned array matches :func:`read_dax`.
+
+    Parameters
+    ----------
+    path
+        Path to zarr store (a directory ending in ``.zarr``).
+    frames
+        Indices of frames to read. If None, all frames are read.
+
+    Returns
+    -------
+    img
+        a numpy array with shape (F, Y, X) where F is the number of frames.
+    """
+    arr = _open_zarr_array(path)
+    if frames is None:
+        return np.asarray(arr[:])
+    if isinstance(frames, int):
+        frames = [frames]
+    # The writer chunks along the frame axis (chunks=(1, Y, X)), so reading one
+    # frame at a time hits exactly one chunk each. Looping (rather than fancy
+    # indexing) also mirrors read_dax and supports arbitrary order / repeats.
+    try:
+        img = np.stack([np.asarray(arr[int(frame)]) for frame in frames])
+    except IndexError:
+        raise ValueError(f"Frame indices {frames} are out of bounds")  # noqa: B904
+    return img
 
 
 def _reconstruct_sparse_frame_map(
@@ -356,6 +418,12 @@ def read_img(
                     f"pixels is not divisible by {n_table_rows}."
                 )
             del img_flat
+        elif suffix == ".zarr":
+            n_image_frames = _open_zarr_array(path).shape[0]
+            if n_table_rows != n_image_frames:
+                raise ValueError(
+                    f"Frame table has {n_table_rows} rows but image has {n_image_frames} frames."
+                )
         color_order = color_order_ft
         attrs["colors"] = color_order.tolist()
         attrs["z_offsets"] = z_offsets_ft
@@ -467,6 +535,8 @@ def read_img(
         # Load image
         if suffix == ".dax":
             img = read_dax(path, shape=shape, frames=frame_indices, **plugin_args)
+        elif suffix == ".zarr":
+            img = read_zarr(path, frames=frame_indices)
         else:
             raw = ski.io.imread(path, plugin=plugin, **plugin_args)
             img = raw[frame_indices]
@@ -484,6 +554,8 @@ def read_img(
         # Load image
         if suffix == ".dax":
             img = read_dax(path, shape=shape, frames=frame_indices, **plugin_args)
+        elif suffix == ".zarr":
+            img = read_zarr(path, frames=frame_indices)
         elif suffix in [".tif", ".tiff"] and plugin is None:
             with tiff.TiffFile(path) as tif:
                 pages = tif.pages
@@ -504,13 +576,15 @@ def read_img(
     if n_colors > 1:
         img = np.reshape(img, (n_colors, img.shape[0] // n_colors, *img.shape[1:]), order="F")
     # Apply transpose and flip operations
-    if suffix == ".dax" and attrs.get("transpose", False):
+    # .zarr movies store raw camera frames in the same layout as .dax (HAL writes
+    # both), so they follow the dax transpose-then-flip ordering, not the tif one.
+    if suffix in (".dax", ".zarr") and attrs.get("transpose", False):
         img = img.swapaxes(-1, -2)
     if attrs.get("flip_horizontal", False):
         img = np.flip(img, axis=-1)
     if attrs.get("flip_vertical", False):
         img = np.flip(img, axis=-2)
-    if suffix != ".dax" and attrs.get("transpose", False):  # transpose second for tif image
+    if suffix not in (".dax", ".zarr") and attrs.get("transpose", False):  # transpose second for tif image
         img = img.swapaxes(-1, -2)
     # Z-project image if necessary
     if z_project:
