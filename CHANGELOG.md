@@ -12,6 +12,8 @@ and this project adheres to [Semantic Versioning][].
 
 ### Added
 
+- `fishtank.correct.stitching`: stitch a FOV grid from neighbour overlaps (phase correlation per edge, per-direction outlier rejection, displacement affine, least-squares positions with an affine prior, held-out validation). Ported from MERlin's `globalpositions`.
+
 ### Changed
 
 ### Fixes
