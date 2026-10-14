@@ -107,10 +107,10 @@ def _fix_overlaps(polygons, min_ioa=0.2, cell="cell", z="global_z", fov="fov", t
     """Fix overlapping polygons by merging > min_ioa."""
     z_mapping = _get_z_mapping(polygons, z)
     polygons_2d = polygons.dissolve(cell).reset_index().drop(columns=[z])
-    polygons_3d = {i: polygons.loc[polygons[cell] == i, ["geometry", z]] for i in polygons[cell].unique()}
+    polygons_3d = {i: group[["geometry", z]] for i, group in polygons.groupby(cell, sort=False)}
     overlap_graph = _get_overlap_graph(polygons_2d, cell, fov)
-    while len(overlap_graph.edges) > 0:
-        edge = list(overlap_graph.edges)[0]
+    # Take the first edge each step without listing or counting all edges
+    while (edge := next(iter(overlap_graph.edges), None)) is not None:
         polygon_1 = polygons_3d[edge[0]]
         polygon_2 = polygons_3d[edge[1]]
         intersection, union, difference = _combine_3d(polygon_1, polygon_2, z)
