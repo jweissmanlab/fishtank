@@ -16,6 +16,8 @@ and this project adheres to [Semantic Versioning][].
 
 ### Fixes
 
+- `determine_fov_format` raises `FileNotFoundError` instead of `ValueError` when no file matches, so a missing image is reported the same way whether or not the pattern fixes the FOV width.
+
 ## [0.3.7]
 
 ### Fixes
