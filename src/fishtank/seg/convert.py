@@ -3,6 +3,7 @@ import numpy as np
 import shapely as shp
 import skimage as ski
 from rasterio.features import rasterize
+from scipy import ndimage as ndi
 
 
 def masks_to_polygons(masks: np.ndarray, tolerance: float = 0.5, id: str = "cell", z: str = "z") -> gpd.GeoDataFrame:
@@ -33,18 +34,21 @@ def masks_to_polygons(masks: np.ndarray, tolerance: float = 0.5, id: str = "cell
         masks = np.expand_dims(masks, axis=0)
     # Transpose
     masks = masks.swapaxes(-1, -2)
-    # Convert masks to polygons
-    for i in np.unique(masks)[1:]:
-        mask = masks == i
+    # Convert masks to polygons, working on each cell's bounding box
+    for i, bbox in enumerate(ndi.find_objects(masks), start=1):
+        if bbox is None:
+            continue
+        mask = masks[bbox] == i
+        offset = np.array([bbox[1].start, bbox[2].start])
         for l in np.where(mask.any(axis=(1, 2)))[0]:
             # Pad mask to ensure contours are closed
             padded_mask = np.pad(mask[l], 1, mode="constant")
             contours = ski.measure.find_contours(padded_mask, 0.5)
-            contours = [contour - 1 for contour in contours]
+            contours = [contour - 1 + offset for contour in contours]
             if len(contours[0]) > 3:
                 polygons.append(shp.geometry.Polygon(contours[0]).simplify(tolerance=tolerance, preserve_topology=True))
-                cells.append(i)
-                layers.append(l)
+                cells.append(masks.dtype.type(i))
+                layers.append(l + bbox[0].start)
     polygons = gpd.GeoDataFrame({id: cells, "geometry": polygons}, crs=None)
     if has_layers:
         polygons[z] = layers
