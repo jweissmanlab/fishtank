@@ -12,6 +12,8 @@ and this project adheres to [Semantic Versioning][].
 
 ### Added
 
+- Microscope settings file: `read_microscope` reads a YAML file with `transpose`, `flip_horizontal`, `flip_vertical` and `micron_per_pixel`, which override the image XML in `read_img`, `read_fov` and `read_mosaic`, and via `--microscope` in `detect-spots`, `cellpose` and `mosaic`. Use it when the XML's orientation or pixel size is wrong for a microscope.
+
 ### Changed
 
 ### Fixes

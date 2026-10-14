@@ -30,6 +30,7 @@ def get_parser():
     )
     parser.add_argument("--flip_horizontal", type=parse_bool, default="False", help="Flip FOV images horizontally")
     parser.add_argument("--flip_vertical", type=parse_bool, default="False", help="Flip FOV images vertically")
+    parser.add_argument("--microscope", type=parse_path, default=None, help="YAML file of microscope settings (transpose, flip_horizontal, flip_vertical, micron_per_pixel) that override the image XML")
     parser.set_defaults(func=mosaic)
     return parser
 
@@ -46,6 +47,7 @@ def mosaic(
     positions: str | Path | None = None,
     flip_horizontal: bool = False,
     flip_vertical: bool = False,
+    microscope: str | Path | None = None,
     **kwargs,
 ):
     """Create a mosaic from a set of image files.
@@ -77,6 +79,8 @@ def mosaic(
         Flip each FOV image horizontally before stitching.
     flip_vertical
         Flip each FOV image vertically before stitching.
+    microscope
+        YAML file of microscope settings that override the image XML (see ``fishtank.io.read_microscope``).
     """
     if fovs is None:
         fovs = ft.io.list_fovs(input, file_pattern=file_pattern)
@@ -96,6 +100,7 @@ def mosaic(
         positions=positions_dict,
         flip_horizontal=flip_horizontal,
         flip_vertical=flip_vertical,
+        microscope=microscope,
     )
     description = json.dumps({"custom_metadata": {"bounds": result[1].tolist()}})
     tifffile.imwrite(output, result[0], description=description)
