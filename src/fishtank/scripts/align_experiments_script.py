@@ -16,7 +16,7 @@ from tqdm import tqdm
 
 import fishtank as ft
 
-from ._utils import parse_path, parse_rotation
+from ._utils import parse_bool, parse_path, parse_rotation
 
 
 def _get_slice_and_resolution(path, series, file_pattern, z_offset):
@@ -107,7 +107,7 @@ def get_parser():
     parser.add_argument("--moving_mosaic", type=parse_path, default=None, help="Path to precomputed moving mosaic TIFF")
     parser.add_argument("--scale_factor", type=float, default=None, help="Scale factor to apply to moving images")
     parser.add_argument(
-        "--skip_fine", type=bool, default=False, help="Skip fine alignment (optical flow) and use only coarse shift"
+        "--skip_fine", type=parse_bool, default=False, help="Skip fine alignment (optical flow) and use only coarse shift"
     )
     parser.set_defaults(func=align_experiments)
     return parser

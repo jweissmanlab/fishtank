@@ -13,7 +13,7 @@ from tqdm import tqdm
 
 import fishtank as ft
 
-from ._utils import parse_index, parse_path
+from ._utils import parse_bool, parse_index, parse_path
 
 
 def _load_fov_polygons(
@@ -128,9 +128,9 @@ def get_parser():
     )
     parser.add_argument("--scale_factor", type=float, default=0.107, help="Factor for converting pixels to microns")
     parser.add_argument("--tolerance", type=float, default=0.5, help="Tolerance from polygon simplification (microns)")
-    parser.add_argument("--save_union", type=bool, default=False, help="Save polygons flattened (unioned) to 2D")
-    parser.add_argument("--flip_horizontal", type=bool, default=False, help="Flip polygons horizontally")
-    parser.add_argument("--flip_vertical", type=bool, default=False, help="Flip polygons vertically")
+    parser.add_argument("--save_union", type=parse_bool, default=False, help="Save polygons flattened (unioned) to 2D")
+    parser.add_argument("--flip_horizontal", type=parse_bool, default=False, help="Flip polygons horizontally")
+    parser.add_argument("--flip_vertical", type=parse_bool, default=False, help="Flip polygons vertically")
     parser.add_argument("--img_size", type=float, default=2304, help="Image size in pixels (width and height)")
     parser.set_defaults(func=aggregate_polygons)
     return parser
