@@ -16,6 +16,8 @@ and this project adheres to [Semantic Versioning][].
 
 ### Fixes
 
+- `fishtank cellpose` with `gpu=True` raises `RuntimeError` when no working CUDA or MPS device is found, instead of silently running on the CPU while holding the GPU.
+
 ## [0.3.7]
 
 ### Fixes

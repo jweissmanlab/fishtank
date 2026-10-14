@@ -74,5 +74,13 @@ def test_cellpose_3d(caplog):
     assert "Saving polygons to tests/output/cellpose_3d" in caplog.text
 
 
+def test_cellpose_gpu_unavailable(monkeypatch):
+    import cellpose.core
+
+    monkeypatch.setattr(cellpose.core, "use_gpu", lambda *args, **kwargs: False)
+    with pytest.raises(RuntimeError, match="no working CUDA or MPS device"):
+        ft.scripts.cellpose(input="./tests/data/merfish", fov=1, channels=["DAPI"], gpu=True)
+
+
 if __name__ == "__main__":
     pytest.main(["-v", __file__])
